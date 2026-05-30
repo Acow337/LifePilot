@@ -63,5 +63,8 @@ export const apiPut = async <T>(url: string, data?: unknown, config?: AxiosReque
 export const apiPatch = async <T>(url: string, data?: unknown, config?: AxiosRequestConfig) =>
   unwrap<T>(await http.patch<ApiResult<T>>(url, data, config))
 
+export const apiDelete = async <T>(url: string, config?: AxiosRequestConfig) =>
+  unwrap<T>(await http.delete<ApiResult<T>>(url, config))
+
 export const apiGetWithMeta = async <T>(url: string, config?: AxiosRequestConfig) =>
   unwrapWithMeta<T>(await http.get<ApiResult<T>>(url, config))

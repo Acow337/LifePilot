@@ -84,6 +84,7 @@ a {
 h1,
 h2,
 h3,
+h4,
 p {
   margin: 0;
 }
@@ -99,6 +100,10 @@ h2 {
 
 h3 {
   font-size: 18px;
+}
+
+h4 {
+  font-size: 16px;
 }
 
 .muted {
@@ -426,6 +431,89 @@ select {
   align-content: center;
   gap: 10px;
   padding: 20px;
+}
+
+.comment-panel {
+  border-top: 1px dashed var(--line);
+  padding-top: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.comment-head {
+  margin-bottom: 0;
+}
+
+.comment-form {
+  display: grid;
+  gap: 8px;
+}
+
+.comment-form textarea {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  resize: vertical;
+  min-height: 64px;
+}
+
+.comment-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.comment-list {
+  display: grid;
+  gap: 8px;
+}
+
+.comment-item {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.comment-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.comment-content {
+  color: #264443;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.comment-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.comment-actions .ghost-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.comment-replies {
+  display: grid;
+  gap: 6px;
+  border-left: 2px solid #e3efee;
+  padding-left: 8px;
+}
+
+.comment-reply-item {
+  background: #f9fcfb;
+  border: 1px solid #e5f0ef;
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  display: grid;
+  gap: 6px;
 }
 
 .fade-in {

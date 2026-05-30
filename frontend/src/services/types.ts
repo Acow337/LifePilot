@@ -67,6 +67,27 @@ export interface Blog {
   createTime?: string
 }
 
+export interface BlogComment {
+  id: number
+  userId: number
+  blogId: number
+  parentId: number
+  answerId: number
+  content: string
+  liked?: number
+  createTime?: string
+  nickName?: string
+  icon?: string
+  replies: BlogComment[]
+}
+
+export interface BlogCommentCreatePayload {
+  blogId: number
+  parentId?: number
+  answerId?: number
+  content: string
+}
+
 export interface Voucher {
   id: number
   shopId: number
