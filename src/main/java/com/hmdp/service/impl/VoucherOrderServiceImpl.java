@@ -23,9 +23,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
+import java.time.ZoneId;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
+
+import static com.hmdp.utils.RedisConstants.SECKILL_BEGIN_KEY;
+import static com.hmdp.utils.RedisConstants.SECKILL_END_KEY;
+import static com.hmdp.utils.RedisConstants.SECKILL_STOCK_KEY;
 
 /**
  * <p>
@@ -46,6 +51,9 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 
     @Resource
     private StringRedisTemplate stringRedisTemplate;
+
+    @Resource
+    private ISeckillVoucherService seckillVoucherService;
 
     //lua脚本
     private static final DefaultRedisScript<Long> SECKILL_SCRIPT;
@@ -71,11 +79,38 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
                 voucherId.toString(),
                 userId.toString()
         );
+        if (r != null && r == 5) {
+            // Redis秒杀元数据可能在重启后丢失，尝试一次预热后重试
+            warmUpSeckillMeta(voucherId);
+            r = stringRedisTemplate.execute(
+                    SECKILL_SCRIPT,
+                    Collections.emptyList(),
+                    voucherId.toString(),
+                    userId.toString()
+            );
+        }
+
         //2.判断结果为0
+        if (r == null) {
+            return Result.fail("秒杀服务异常，请稍后重试");
+        }
         int result = r.intValue();
         if (result != 0) {
             //2.1不为0代表没有购买资格
-            return Result.fail(r == 1 ? "库存不足" : "该用户重复下单");
+            switch (result) {
+                case 1:
+                    return Result.fail("库存不足");
+                case 2:
+                    return Result.fail("该用户重复下单");
+                case 3:
+                    return Result.fail("秒杀尚未开始");
+                case 4:
+                    return Result.fail("秒杀已结束");
+                case 5:
+                    return Result.fail("秒杀活动不存在或未初始化");
+                default:
+                    return Result.fail("秒杀失败，请稍后重试");
+            }
         }
         //2.2为0代表有购买资格,将下单信息保存到阻塞队列
 
@@ -102,6 +137,21 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 //            //    还得利用代理来生效，所以这个地方，我们需要获得原始的事务对象， 来操作事务
 //            return voucherOrderService.createVoucherOrder(voucherId);
 //        }
+    }
+
+    private void warmUpSeckillMeta(Long voucherId) {
+        if (voucherId == null) {
+            return;
+        }
+        SeckillVoucher seckillVoucher = seckillVoucherService.getById(voucherId);
+        if (seckillVoucher == null || seckillVoucher.getStock() == null || seckillVoucher.getBeginTime() == null || seckillVoucher.getEndTime() == null) {
+            return;
+        }
+        stringRedisTemplate.opsForValue().set(SECKILL_STOCK_KEY + voucherId, seckillVoucher.getStock().toString());
+        stringRedisTemplate.opsForValue().set(SECKILL_BEGIN_KEY + voucherId,
+                String.valueOf(seckillVoucher.getBeginTime().atZone(ZoneId.systemDefault()).toEpochSecond()));
+        stringRedisTemplate.opsForValue().set(SECKILL_END_KEY + voucherId,
+                String.valueOf(seckillVoucher.getEndTime().atZone(ZoneId.systemDefault()).toEpochSecond()));
     }
 
 

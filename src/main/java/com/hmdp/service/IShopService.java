@@ -19,4 +19,10 @@ public interface IShopService extends IService<Shop> {
     Result update(Shop shop);
 
     Result queryShopByType(Integer typeId, Integer current, Double x, Double y);
+
+    Result queryAdminShops(Integer page, Integer size, String keyword, Long typeId);
+
+    Result createAdminShop(Shop shop);
+
+    Result updateAdminShop(Long shopId, Shop shop);
 }

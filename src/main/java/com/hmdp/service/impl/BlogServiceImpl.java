@@ -1,16 +1,16 @@
 package com.hmdp.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.core.util.BooleanUtil;
 import cn.hutool.core.util.StrUtil;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.hmdp.dto.Result;
 import com.hmdp.dto.ScrollResult;
 import com.hmdp.dto.UserDTO;
+import com.hmdp.dto.admin.AdminBlogReviewDTO;
 import com.hmdp.entity.Blog;
 import com.hmdp.entity.Follow;
 import com.hmdp.entity.User;
+import com.hmdp.enums.BlogReviewAction;
 import com.hmdp.mapper.BlogMapper;
 import com.hmdp.service.IBlogService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -57,7 +57,7 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
     @Override
     public Result queryById(Integer id) {
         Blog blog = getById(id);
-        if (blog == null) {
+        if (blog == null || !Integer.valueOf(SystemConstants.BLOG_STATUS_NORMAL).equals(blog.getStatus())) {
             return Result.fail("博客不存在或已被删除");
         }
         queryBlogUser(blog);
@@ -70,6 +70,7 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
     public Result queryHotBlog(Integer current) {
         // 根据用户查询
         Page<Blog> page = query()
+                .eq("status", SystemConstants.BLOG_STATUS_NORMAL)
                 .orderByDesc("liked")
                 .page(new Page<>(current, SystemConstants.MAX_PAGE_SIZE));
         // 获取当前页数据
@@ -160,6 +161,7 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
         UserDTO user = UserHolder.getUser();
         blog.setUserId(user.getId());
         // 保存探店博文
+        blog.setStatus(SystemConstants.BLOG_STATUS_NORMAL);
         boolean isSuccess = blogService.save(blog);
         if (!isSuccess)
         {
@@ -181,25 +183,19 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
 
     @Override
     public Result queryBlogOfFollow(Long max, Integer offset) {
-        //1. 获取当前用户
         Long userId = UserHolder.getUser().getId();
-        //2. 查询该用户收件箱（之前我们存的key是固定前缀 + 粉丝id），所以根据当前用户id就可以查询是否有关注的人发了笔记
         String key = FEED_KEY + userId;
         Set<ZSetOperations.TypedTuple<String>> typeTuples = stringRedisTemplate.opsForZSet()
                 .reverseRangeByScoreWithScores(key, 0, max, offset, 2);
-        //3. 非空判断
         if (typeTuples == null || typeTuples.isEmpty()){
             return Result.ok(Collections.emptyList());
         }
-        //4. 解析数据，blogId、minTime（时间戳）、offset，这里指定创建的list大小，可以略微提高效率，因为我们知道这个list就得是这么大
         ArrayList<Long> ids = new ArrayList<>(typeTuples.size());
         long minTime = 0;
         int os = 1;
         for (ZSetOperations.TypedTuple<String> typeTuple : typeTuples) {
-            //4.1 获取id
             String id = typeTuple.getValue();
             ids.add(Long.valueOf(id));
-            //4.2 获取score（时间戳）
             long time = typeTuple.getScore().longValue();
             if (time == minTime){
                 os++;
@@ -208,23 +204,71 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
                 os = 1;
             }
         }
-        //解决SQL的in不能排序问题，手动指定排序为传入的ids
-        String idsStr = StrUtil.join(",");
-
-        //5. 根据id查询blog
-        List<Blog> blogs = query().in("id", ids).last("ORDER BY FIELD(id," + idsStr + ")").list();
-
+        String idsStr = StrUtil.join(",", ids);
+        List<Blog> blogs = query().in("id", ids)
+                .eq("status", SystemConstants.BLOG_STATUS_NORMAL)
+                .last("ORDER BY FIELD(id," + idsStr + ")")
+                .list();
         for (Blog blog : blogs) {
-            //5.1 查询发布该blog的用户信息
             queryBlogUser(blog);
-            //5.2 查询当前用户是否给该blog点过赞
             isBlogLiked(blog);
         }
-        //6. 封装结果并返回
         ScrollResult scrollResult = new ScrollResult();
         scrollResult.setList(blogs);
         scrollResult.setOffset(os);
         scrollResult.setMinTime(minTime);
         return Result.ok(scrollResult);
+    }
+
+    @Override
+    public Result queryAdminBlogs(Integer page, Integer size, Integer status, String keyword) {
+        int currentPage = page == null || page < 1 ? 1 : page;
+        int pageSize = size == null || size < 1 ? SystemConstants.MAX_PAGE_SIZE : Math.min(size, 50);
+        Page<Blog> blogPage = query()
+                .eq(status != null, "status", status)
+                .and(StrUtil.isNotBlank(keyword), q -> q.like("title", keyword).or().like("content", keyword))
+                .orderByDesc("create_time")
+                .page(new Page<>(currentPage, pageSize));
+
+        blogPage.getRecords().forEach(this::queryBlogUser);
+        return Result.ok(blogPage.getRecords(), blogPage.getTotal());
+    }
+
+    @Override
+    public Result reviewBlog(Long blogId, AdminBlogReviewDTO reviewDTO) {
+        if (blogId == null || reviewDTO == null) {
+            return Result.fail("参数不能为空");
+        }
+        Blog blog = getById(blogId);
+        if (blog == null) {
+            return Result.fail("笔记不存在");
+        }
+
+        BlogReviewAction action = BlogReviewAction.from(reviewDTO.getAction());
+        if (action == null) {
+            return Result.fail("action 仅支持 APPROVE / REJECT / OFFLINE");
+        }
+
+        int targetStatus = (action == BlogReviewAction.APPROVE)
+                ? SystemConstants.BLOG_STATUS_NORMAL
+                : SystemConstants.BLOG_STATUS_HIDDEN;
+
+        boolean success = update()
+                .set("status", targetStatus)
+                .eq("id", blogId)
+                .update();
+        return success ? Result.ok() : Result.fail("笔记审核操作失败");
+    }
+
+    @Override
+    public Result hideBlog(Long id) {
+        boolean success = update().set("status", SystemConstants.BLOG_STATUS_HIDDEN).eq("id", id).update();
+        return success ? Result.ok() : Result.fail("下架失败");
+    }
+
+    @Override
+    public Result restoreBlog(Long id) {
+        boolean success = update().set("status", SystemConstants.BLOG_STATUS_NORMAL).eq("id", id).update();
+        return success ? Result.ok() : Result.fail("恢复失败");
     }
 }

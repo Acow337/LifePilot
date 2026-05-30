@@ -283,4 +283,38 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         //6. 返回
         return Result.ok(shops);
     }
+
+    @Override
+    public Result queryAdminShops(Integer page, Integer size, String keyword, Long typeId) {
+        int currentPage = page == null || page < 1 ? 1 : page;
+        int pageSize = size == null || size < 1 ? SystemConstants.MAX_PAGE_SIZE : Math.min(size, 50);
+        Page<Shop> shopPage = query()
+                .like(StrUtil.isNotBlank(keyword), "name", keyword)
+                .eq(typeId != null, "type_id", typeId)
+                .orderByDesc("create_time")
+                .page(new Page<>(currentPage, pageSize));
+        return Result.ok(shopPage.getRecords(), shopPage.getTotal());
+    }
+
+    @Override
+    public Result createAdminShop(Shop shop) {
+        if (shop == null) {
+            return Result.fail("店铺参数不能为空");
+        }
+        boolean success = save(shop);
+        return success ? Result.ok(shop.getId()) : Result.fail("创建店铺失败");
+    }
+
+    @Override
+    public Result updateAdminShop(Long shopId, Shop shop) {
+        if (shopId == null || shop == null) {
+            return Result.fail("参数不能为空");
+        }
+        Shop existed = getById(shopId);
+        if (existed == null) {
+            return Result.fail("店铺不存在");
+        }
+        shop.setId(shopId);
+        return update(shop);
+    }
 }

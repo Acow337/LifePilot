@@ -48,7 +48,7 @@ public class UserController {
 
     /**
      * 登录功能
-     * @param loginForm 登录参数，包含手机号、验证码；或者手机号、密码
+     * @param loginForm 登录参数，包含邮箱、密码
      */
     @PostMapping("/login")
     public Result login(@RequestBody LoginFormDTO loginForm, HttpSession session){

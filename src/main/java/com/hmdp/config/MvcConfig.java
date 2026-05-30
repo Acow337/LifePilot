@@ -1,5 +1,6 @@
 package com.hmdp.config;
 
+import com.hmdp.utils.AdminInterceptor;
 import com.hmdp.utils.LoginInterceptor;
 import com.hmdp.utils.RefreshTokenInterceptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,5 +24,9 @@ public class MvcConfig implements WebMvcConfigurer {
                                     "/shop-type/**",
                                     "/upload/**",
                                     "/voucher/**").order(1);
+
+        registry.addInterceptor(new AdminInterceptor())
+                .addPathPatterns("/shop", "/voucher", "/voucher/seckill", "/admin/**")
+                .order(2);
     }
 }

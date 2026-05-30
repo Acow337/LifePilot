@@ -1,6 +1,7 @@
 package com.hmdp.service;
 
 import com.hmdp.dto.Result;
+import com.hmdp.dto.admin.AdminBlogReviewDTO;
 import com.hmdp.entity.Blog;
 import com.baomidou.mybatisplus.extension.service.IService;
 
@@ -25,4 +26,12 @@ public interface IBlogService extends IService<Blog> {
     Result saveBlog(Blog blog);
 
     Result queryBlogOfFollow(Long max, Integer offset);
+
+    Result queryAdminBlogs(Integer page, Integer size, Integer status, String keyword);
+
+    Result reviewBlog(Long blogId, AdminBlogReviewDTO reviewDTO);
+
+    Result hideBlog(Long id);
+
+    Result restoreBlog(Long id);
 }

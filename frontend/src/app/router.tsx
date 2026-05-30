@@ -1,0 +1,71 @@
+import { Navigate, createBrowserRouter } from 'react-router-dom'
+import App from '../App'
+import { HomePage } from '../pages/HomePage'
+import { LoginPage } from '../pages/LoginPage'
+import { ShopDetailPage } from '../pages/ShopDetailPage'
+import { ShopListPage } from '../pages/ShopListPage'
+import { AdminLayout } from '../pages/admin/AdminLayout'
+import { AdminUsersPage } from '../pages/admin/AdminUsersPage'
+import { AdminBlogsPage } from '../pages/admin/AdminBlogsPage'
+import { AdminShopsPage } from '../pages/admin/AdminShopsPage'
+import { AdminVouchersPage } from '../pages/admin/AdminVouchersPage'
+import { AdminLogsPage } from '../pages/admin/AdminLogsPage'
+
+export const router = createBrowserRouter([
+  {
+    path: '/login',
+    element: <LoginPage />,
+  },
+  {
+    path: '/',
+    element: <App />,
+    children: [
+      {
+        index: true,
+        element: <HomePage />,
+      },
+      {
+        path: 'shops',
+        element: <ShopListPage />,
+      },
+      {
+        path: 'shop/:id',
+        element: <ShopDetailPage />,
+      },
+      {
+        path: 'admin',
+        element: <AdminLayout />,
+        children: [
+          {
+            index: true,
+            element: <Navigate to="users" replace />,
+          },
+          {
+            path: 'users',
+            element: <AdminUsersPage />,
+          },
+          {
+            path: 'blogs',
+            element: <AdminBlogsPage />,
+          },
+          {
+            path: 'shops',
+            element: <AdminShopsPage />,
+          },
+          {
+            path: 'vouchers',
+            element: <AdminVouchersPage />,
+          },
+          {
+            path: 'logs',
+            element: <AdminLogsPage />,
+          },
+        ],
+      },
+    ],
+  },
+  {
+    path: '*',
+    element: <Navigate to="/" replace />,
+  },
+])

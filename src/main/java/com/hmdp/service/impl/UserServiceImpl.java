@@ -3,6 +3,8 @@ package com.hmdp.service.impl;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.lang.UUID;
 import cn.hutool.core.util.RandomUtil;
+import cn.hutool.core.util.StrUtil;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.dto.LoginFormDTO;
 import com.hmdp.dto.Result;
@@ -11,17 +13,17 @@ import com.hmdp.entity.User;
 import com.hmdp.mapper.UserMapper;
 import com.hmdp.service.IUserService;
 import com.hmdp.utils.MailUtils;
+import com.hmdp.utils.PasswordEncoder;
 import com.hmdp.utils.RegexUtils;
 import com.hmdp.utils.SystemConstants;
 import com.hmdp.utils.UserHolder;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.connection.BitFieldSubCommands;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.Resource;
 import javax.mail.MessagingException;
 import javax.servlet.http.HttpSession;
 import java.time.LocalDateTime;
@@ -45,6 +47,8 @@ import static com.hmdp.utils.RedisConstants.*;
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IUserService {
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
+
+    private static final BCryptPasswordEncoder BCRYPT_PASSWORD_ENCODER = new BCryptPasswordEncoder();
     //发短信
     @Override
     public Result sendCode(String phone, HttpSession session) throws MessagingException {
@@ -105,65 +109,73 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     @Override
     public Result login(LoginFormDTO loginForm, HttpSession session) {
         String phone = loginForm.getPhone();
-        String code = loginForm.getCode();
-        //检验手机号是否正确，不同的请求就应该再次去进行确认
-        if(RegexUtils.isEmailInvalid(phone))
-        {
-            //如果无效，则直接返回
-            return Result.fail("邮箱格式不正确！！");
-        }
-        //从redis中读取验证码，并进行校验
-        String Cachecode = stringRedisTemplate.opsForValue().get(LOGIN_CODE_KEY+phone);
-        //1. 校验邮箱
+        String password = loginForm.getPassword();
         if (RegexUtils.isEmailInvalid(phone)) {
             return Result.fail("邮箱格式不正确！！");
         }
-        //2. 不符合格式则报错
-        if (Cachecode==null || !code.equals(Cachecode))
-        {
-            return Result.fail("无效的验证码");
+        if (password == null || password.isEmpty()) {
+            return Result.fail("密码不能为空");
         }
-        //如果上述都没有问题的话，就从数据库中查询该用户的信息
-
-        //select * from tb_user where phone = ?
         User user = query().eq("phone", phone).one();
-
-        //判断用户是否存在
-        if (user==null)
-        {
-            user = createuser(phone);
+        if (user == null) {
+            return Result.fail("账号不存在");
         }
-        //保存用户信息到Redis中
+        if (Integer.valueOf(SystemConstants.USER_STATUS_BANNED).equals(user.getStatus())) {
+            return Result.fail("账号已被封禁");
+        }
+        if (!verifyPasswordAndAutoUpgrade(user, password)) {
+            return Result.fail("密码错误");
+        }
         String token = UUID.randomUUID().toString();
-
-        //7.2 将UserDto对象转为HashMap存储
         UserDTO userDTO = BeanUtil.copyProperties(user, UserDTO.class);
         HashMap<String, String > userMap = new HashMap<>();
         userMap.put("id", String.valueOf(userDTO.getId()));
         userMap.put("nickName", userDTO.getNickName());
         userMap.put("icon", userDTO.getIcon());
-
-
-        //7.3 存储
+        userMap.put("role", String.valueOf(userDTO.getRole() == null ? SystemConstants.ROLE_USER : userDTO.getRole()));
         String tokenKey = LOGIN_USER_KEY + token;
         stringRedisTemplate.opsForHash().putAll(tokenKey, userMap);
-
-        //7.4 设置token有效期为30分钟
         stringRedisTemplate.expire(tokenKey, LOGIN_USER_TTL, TimeUnit.MINUTES);
-
-        //7.5 登陆成功则删除验证码信息
-        stringRedisTemplate.delete(LOGIN_CODE_KEY + phone);
-
-        //8. 返回token
         return Result.ok(token);
     }
 
+    private boolean verifyPasswordAndAutoUpgrade(User user, String rawPassword) {
+        String storedPassword = user.getPassword();
+        if (storedPassword == null || storedPassword.isEmpty()) {
+            return false;
+        }
+
+        boolean matches;
+        if (isBcryptHash(storedPassword)) {
+            matches = BCRYPT_PASSWORD_ENCODER.matches(rawPassword, storedPassword);
+        } else {
+            matches = rawPassword.equals(storedPassword);
+            if (!matches && storedPassword.contains("@")) {
+                try {
+                    matches = PasswordEncoder.matches(storedPassword, rawPassword);
+                } catch (RuntimeException ignored) {
+                    matches = false;
+                }
+            }
+            if (matches) {
+                String bcryptPassword = BCRYPT_PASSWORD_ENCODER.encode(rawPassword);
+                update().set("password", bcryptPassword).eq("id", user.getId()).update();
+                user.setPassword(bcryptPassword);
+            }
+        }
+        return matches;
+    }
+
+    private boolean isBcryptHash(String password) {
+        return password.startsWith("$2a$") || password.startsWith("$2b$") || password.startsWith("$2y$");
+    }
+
     private User createuser(String phone) {
-        //创建用户
         User user = new User();
         user.setPhone(phone);
+        user.setRole(SystemConstants.ROLE_USER);
+        user.setStatus(SystemConstants.USER_STATUS_NORMAL);
         user.setNickName(SystemConstants.USER_NICK_NAME_PREFIX +RandomUtil.randomString(10));
-        //保存用户 insert into tb_user(phone,nick_name) values(?,?)
         save(user);
         return user;
     }
@@ -186,34 +198,98 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
 
     @Override
     public Result signCount() {
-        //1. 获取当前用户
         Long userId = UserHolder.getUser().getId();
-        //2. 获取日期
         LocalDateTime now = LocalDateTime.now();
-        //3. 拼接key
         String keySuffix = now.format(DateTimeFormatter.ofPattern(":yyyyMM"));
         String key = USER_SIGN_KEY + userId + keySuffix;
-        //4. 获取今天是当月第几天(1~31)
         int dayOfMonth = now.getDayOfMonth();
-
-
-        //5. 获取截止至今日的签到记录  BITFIELD key GET uDay 0
         List<Long> result = stringRedisTemplate.opsForValue().bitField(key, BitFieldSubCommands.create()
                 .get(BitFieldSubCommands.BitFieldType.unsigned(dayOfMonth)).valueAt(0));
         if (result == null || result.isEmpty()) {
             return Result.ok(0);
         }
-        //6. 循环遍历
         int count = 0;
         Long num = result.get(0);
         while (true) {
             if ((num & 1) == 0) {
                 break;
-            } else
+            } else {
                 count++;
-            //数字右移，抛弃最后一位
-            num = num>>>1;
+            }
+            num = num >>> 1;
         }
         return Result.ok(count);
+    }
+
+    @Override
+    public Result queryAdminUsers(Integer page, Integer size, String keyword, Integer status) {
+        int currentPage = page == null || page < 1 ? 1 : page;
+        int pageSize = size == null || size < 1 ? SystemConstants.MAX_PAGE_SIZE : Math.min(size, 50);
+        Page<User> userPage = query()
+                .and(StrUtil.isNotBlank(keyword), q -> q.like("phone", keyword).or().like("nick_name", keyword))
+                .eq(status != null, "status", status)
+                .orderByDesc("create_time")
+                .page(new Page<>(currentPage, pageSize));
+        userPage.getRecords().forEach(user -> user.setPassword(null));
+        return Result.ok(userPage.getRecords(), userPage.getTotal());
+    }
+
+    @Override
+    public Result updateUserStatus(Long userId, Integer status) {
+        if (userId == null || status == null) {
+            return Result.fail("参数不能为空");
+        }
+        if (!Integer.valueOf(SystemConstants.USER_STATUS_NORMAL).equals(status)
+                && !Integer.valueOf(SystemConstants.USER_STATUS_BANNED).equals(status)) {
+            return Result.fail("用户状态非法");
+        }
+        User user = getById(userId);
+        if (user == null) {
+            return Result.fail("用户不存在");
+        }
+        if (Integer.valueOf(SystemConstants.ROLE_ADMIN).equals(user.getRole())
+                && Integer.valueOf(SystemConstants.USER_STATUS_BANNED).equals(status)) {
+            return Result.fail("不能封禁管理员账号");
+        }
+        boolean success = update().set("status", status).eq("id", userId).update();
+        return success ? Result.ok() : Result.fail("更新用户状态失败");
+    }
+
+    @Override
+    public Result updateUserRole(Long userId, Integer role) {
+        if (userId == null || role == null) {
+            return Result.fail("参数不能为空");
+        }
+        if (!Integer.valueOf(SystemConstants.ROLE_USER).equals(role)
+                && !Integer.valueOf(SystemConstants.ROLE_ADMIN).equals(role)) {
+            return Result.fail("用户角色非法");
+        }
+        User user = getById(userId);
+        if (user == null) {
+            return Result.fail("用户不存在");
+        }
+        UserDTO operator = UserHolder.getUser();
+        if (operator != null
+                && operator.getId().equals(userId)
+                && Integer.valueOf(SystemConstants.ROLE_USER).equals(role)) {
+            return Result.fail("不能取消自己的管理员身份");
+        }
+        boolean success = update().set("role", role).eq("id", userId).update();
+        return success ? Result.ok() : Result.fail("更新用户角色失败");
+    }
+
+    @Override
+    public Result queryAdminUsers(Integer current, String keyword) {
+        return queryAdminUsers(current, SystemConstants.MAX_PAGE_SIZE, keyword, null);
+    }
+
+    @Override
+    public Result banUser(Long userId) {
+        return updateUserStatus(userId, SystemConstants.USER_STATUS_BANNED);
+    }
+
+    @Override
+    public Result unbanUser(Long userId) {
+        return updateUserStatus(userId, SystemConstants.USER_STATUS_NORMAL);
     }
 }

@@ -3,11 +3,8 @@ package com.hmdp.utils;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.StrUtil;
 import com.hmdp.dto.UserDTO;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.servlet.HandlerInterceptor;
-
-import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.util.Map;
@@ -38,6 +35,9 @@ public class RefreshTokenInterceptor implements HandlerInterceptor {
         }
         //5. 将查询到的Hash数据转化为UserDto对象
         UserDTO userDTO = BeanUtil.fillBeanWithMap(userMap, new UserDTO(), false);
+        if (userDTO.getRole() == null) {
+            userDTO.setRole(SystemConstants.ROLE_USER);
+        }
         //6. 将用户信息保存到ThreadLocal
         UserHolder.saveUser(userDTO);
         //7. 刷新tokenTTL，这里的存活时间根据需要自己设置，这里的常量值我改为了30分钟

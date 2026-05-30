@@ -7,6 +7,7 @@ import com.hmdp.service.ISeckillVoucherService;
 import com.hmdp.service.IVoucherOrderService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,18 +36,18 @@ public class MQReceiver {
         VoucherOrder voucherOrder = JSON.parseObject(msg, VoucherOrder.class);
 
         Long voucherId = voucherOrder.getVoucherId();
-        //5.一人一单
         Long userId = voucherOrder.getUserId();
-        //5.1查询订单
-        int count = voucherOrderService.query().eq("user_id",userId).eq("voucher_id", voucherId).count();
-        //5.2判断是否存在
-        if(count>0){
-            //用户已经购买过了
-            log.error("该用户已购买过");
-            return ;
+
+        // 先入库，利用唯一索引兜底防重 (user_id, voucher_id)
+        try {
+            voucherOrderService.save(voucherOrder);
+        } catch (DuplicateKeyException e) {
+            log.warn("重复下单消息，忽略。userId={}, voucherId={}", userId, voucherId);
+            return;
         }
+
         log.info("扣减库存");
-        //6.扣减库存
+        // 扣减库存失败则抛异常，事务回滚(包括上面的订单插入)
         boolean success = seckillVoucherService
                 .update()
                 .setSql("stock = stock-1")
@@ -54,11 +55,9 @@ public class MQReceiver {
                 .gt("stock",0)//cas乐观锁
                 .update();
         if(!success){
-            log.error("库存不足");
-            return;
+            log.error("库存不足，回滚订单。voucherId={}", voucherId);
+            throw new RuntimeException("库存不足");
         }
-        //直接保存订单
-        voucherOrderService.save(voucherOrder);
     }
 
 }

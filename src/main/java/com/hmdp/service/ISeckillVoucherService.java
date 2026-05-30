@@ -13,4 +13,5 @@ import com.baomidou.mybatisplus.extension.service.IService;
  */
 public interface ISeckillVoucherService extends IService<SeckillVoucher> {
 
+    boolean updateStock(Long voucherId, Integer stock);
 }

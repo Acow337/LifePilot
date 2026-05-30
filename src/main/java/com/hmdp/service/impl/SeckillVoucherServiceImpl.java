@@ -17,4 +17,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class SeckillVoucherServiceImpl extends ServiceImpl<SeckillVoucherMapper, SeckillVoucher> implements ISeckillVoucherService {
 
+    @Override
+    public boolean updateStock(Long voucherId, Integer stock) {
+        return update().set("stock", stock).eq("voucher_id", voucherId).update();
+    }
 }

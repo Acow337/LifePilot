@@ -63,7 +63,9 @@ public class BlogController {
         UserDTO user = UserHolder.getUser();
         // 根据用户查询
         Page<Blog> page = blogService.query()
-                .eq("user_id", user.getId()).page(new Page<>(current, SystemConstants.MAX_PAGE_SIZE));
+                .eq("user_id", user.getId())
+                .eq("status", SystemConstants.BLOG_STATUS_NORMAL)
+                .page(new Page<>(current, SystemConstants.MAX_PAGE_SIZE));
         // 获取当前页数据
         List<Blog> records = page.getRecords();
         return Result.ok(records);
@@ -75,7 +77,9 @@ public class BlogController {
             @RequestParam("id") Long id) {
         // 根据用户查询
         Page<Blog> page = blogService.query()
-                .eq("user_id", id).page(new Page<>(current, SystemConstants.MAX_PAGE_SIZE));
+                .eq("user_id", id)
+                .eq("status", SystemConstants.BLOG_STATUS_NORMAL)
+                .page(new Page<>(current, SystemConstants.MAX_PAGE_SIZE));
         // 获取当前页数据
         List<Blog> records = page.getRecords();
         return Result.ok(records);

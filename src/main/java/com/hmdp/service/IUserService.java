@@ -25,4 +25,16 @@ public interface IUserService extends IService<User> {
     Result sign();
 
     Result signCount();
+
+    Result queryAdminUsers(Integer page, Integer size, String keyword, Integer status);
+
+    Result updateUserStatus(Long userId, Integer status);
+
+    Result updateUserRole(Long userId, Integer role);
+
+    Result queryAdminUsers(Integer current, String keyword);
+
+    Result banUser(Long userId);
+
+    Result unbanUser(Long userId);
 }

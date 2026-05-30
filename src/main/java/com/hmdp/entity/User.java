@@ -44,6 +44,16 @@ public class User implements Serializable {
     private String password;
 
     /**
+     * 角色，0-普通用户，1-管理员
+     */
+    private Integer role;
+
+    /**
+     * 状态，0-正常，1-封禁
+     */
+    private Integer status;
+
+    /**
      * 昵称，默认是随机字符
      */
     private String nickName;

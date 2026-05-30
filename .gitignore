@@ -31,3 +31,13 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Local build/cache ###
+.m2/
+
+### Frontend ###
+frontend/node_modules/
+frontend/dist/
+
+AGENTS.md
+account-info.txt

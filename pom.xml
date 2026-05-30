@@ -89,6 +89,11 @@
             <artifactId>aspectjweaver</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
+        </dependency>
+
         <!--这部分是邮箱相关的依赖-->
         <!-- https://mvnrepository.com/artifact/javax.activation/activation -->
         <dependency>
@@ -117,11 +122,6 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-amqp</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <optional>true</optional>
         </dependency>
         <!--实现令牌桶算法-->
         <dependency>

@@ -13,4 +13,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
  */
 public interface IBlogCommentsService extends IService<BlogComments> {
 
+    boolean hideComment(Long id);
+
+    boolean restoreComment(Long id);
 }

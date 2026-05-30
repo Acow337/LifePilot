@@ -9,10 +9,39 @@ local userId = ARGV[2]
 local stockKey = 'seckill:stock:' .. voucherId
 -- 2.2订单key
 local orderKey = 'seckill:order:' .. voucherId
+-- 2.3活动时间key
+local beginKey = 'seckill:begin:' .. voucherId
+local endKey = 'seckill:end:' .. voucherId
+
+-- 2.4活动时间
+local beginAt = redis.call('get', beginKey)
+local endAt = redis.call('get', endKey)
+
+if (not beginAt) or (not endAt) then
+    -- 活动未初始化
+    return 5
+end
+
+local now = tonumber(redis.call('time')[1])
+if (now < tonumber(beginAt)) then
+    -- 活动未开始
+    return 3
+end
+
+if (now > tonumber(endAt)) then
+    -- 活动已结束
+    return 4
+end
 
 -- 3.脚本业务
 -- 3.1判断库存是否充足
-if(tonumber(redis.call('get',stockKey)) <= 0)then
+local stock = redis.call('get',stockKey)
+if (not stock) then
+    -- 库存未初始化
+    return 5
+end
+
+if(tonumber(stock) <= 0)then
     -- 3.2 库存不足 返回1
     return 1
 end
