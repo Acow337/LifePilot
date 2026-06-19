@@ -22,4 +22,7 @@ mysql -h"${DB_HOST}" -P"${DB_PORT}" -u"${DB_USER}" \
 mysql -h"${DB_HOST}" -P"${DB_PORT}" -u"${DB_USER}" \
   "${DB_NAME}" < src/main/resources/db/hmdp_perf_indexes.sql
 
+mysql -h"${DB_HOST}" -P"${DB_PORT}" -u"${DB_USER}" \
+  "${DB_NAME}" < src/main/resources/db/hmdp_demo_seed.sql
+
 echo "Database initialized: ${DB_NAME}"
