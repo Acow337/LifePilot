@@ -806,3 +806,34 @@ select {
   justify-content: space-between;
   gap: 12px;
 }
+
+.order-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.redeem-code {
+  display: inline-flex;
+  width: fit-content;
+  border: 1px dashed #89bfba;
+  border-radius: var(--radius-sm);
+  background: #f4fbfa;
+  color: #0b6762;
+  padding: 8px 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.redeem-panel {
+  display: grid;
+  gap: 12px;
+  max-width: 460px;
+}
+
+.redeem-panel label {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+}

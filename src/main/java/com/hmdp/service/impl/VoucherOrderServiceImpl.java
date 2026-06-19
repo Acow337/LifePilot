@@ -56,6 +56,13 @@ import static com.hmdp.utils.RedisConstants.SECKILL_STOCK_KEY;
  */
 @Service
 public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, VoucherOrder> implements IVoucherOrderService {
+    private static final int ORDER_STATUS_UNPAID = 1;
+    private static final int ORDER_STATUS_PAID = 2;
+    private static final int ORDER_STATUS_USED = 3;
+    private static final int ORDER_STATUS_CANCELED = 4;
+    private static final int ORDER_STATUS_REFUNDING = 5;
+    private static final int ORDER_STATUS_REFUNDED = 6;
+
     @Resource
     private RedisIdWorker redisIdWorker;
     @Resource
@@ -276,8 +283,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         voucherOrder.setUserId(userId);
         voucherOrder.setVoucherId(voucherId);
         voucherOrder.setPayType(1);
-        voucherOrder.setStatus(2);
-        voucherOrder.setPayTime(LocalDateTime.now());
+        voucherOrder.setStatus(ORDER_STATUS_UNPAID);
         boolean saved = save(voucherOrder);
         if (!saved) {
             throw new BizException(ErrorCode.BIZ_ERROR, "创建订单失败");
@@ -300,6 +306,62 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
             rows.add(toOrderRow(order));
         }
         return Result.ok(rows, (long) rows.size());
+    }
+
+    @Override
+    @Transactional
+    public Result payVoucherOrder(Long orderId) {
+        VoucherOrder order = requireOrder(orderId);
+        Long userId = UserHolder.getUser().getId();
+        if (!userId.equals(order.getUserId())) {
+            throw new BizException(ErrorCode.FORBIDDEN, "无权操作该订单");
+        }
+        if (order.getStatus() == null || order.getStatus() != ORDER_STATUS_UNPAID) {
+            throw new BizException(ErrorCode.BIZ_ERROR, "当前订单状态不可支付");
+        }
+        order.setStatus(ORDER_STATUS_PAID);
+        order.setPayTime(LocalDateTime.now());
+        boolean updated = updateById(order);
+        if (!updated) {
+            throw new BizException(ErrorCode.BIZ_ERROR, "支付失败，请重试");
+        }
+        return Result.ok(toOrderState(order, "支付成功"));
+    }
+
+    @Override
+    @Transactional
+    public Result redeemVoucherOrder(Long orderId) {
+        VoucherOrder order = requireOrder(orderId);
+        if (order.getStatus() == null || order.getStatus() != ORDER_STATUS_PAID) {
+            throw new BizException(ErrorCode.BIZ_ERROR, "仅已支付订单可核销");
+        }
+        order.setStatus(ORDER_STATUS_USED);
+        order.setUseTime(LocalDateTime.now());
+        boolean updated = updateById(order);
+        if (!updated) {
+            throw new BizException(ErrorCode.BIZ_ERROR, "核销失败，请重试");
+        }
+        return Result.ok(toOrderState(order, "核销成功"));
+    }
+
+    private VoucherOrder requireOrder(Long orderId) {
+        if (orderId == null) {
+            throw new BizException(ErrorCode.BAD_REQUEST, "订单号不能为空");
+        }
+        VoucherOrder order = getById(orderId);
+        if (order == null) {
+            throw new BizException(ErrorCode.NOT_FOUND, "订单不存在");
+        }
+        return order;
+    }
+
+    private Map<String, Object> toOrderState(VoucherOrder order, String message) {
+        Map<String, Object> data = new HashMap<>(4);
+        data.put("orderId", order.getId());
+        data.put("status", order.getStatus());
+        data.put("statusText", toOrderStatusText(order.getStatus()));
+        data.put("message", message);
+        return data;
     }
 
     private Map<String, Object> toOrderRow(VoucherOrder order) {
@@ -334,17 +396,17 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
             return "未知";
         }
         switch (status) {
-            case 1:
+            case ORDER_STATUS_UNPAID:
                 return "未支付";
-            case 2:
+            case ORDER_STATUS_PAID:
                 return "已支付";
-            case 3:
+            case ORDER_STATUS_USED:
                 return "已核销";
-            case 4:
+            case ORDER_STATUS_CANCELED:
                 return "已取消";
-            case 5:
+            case ORDER_STATUS_REFUNDING:
                 return "退款中";
-            case 6:
+            case ORDER_STATUS_REFUNDED:
                 return "已退款";
             default:
                 return "未知";

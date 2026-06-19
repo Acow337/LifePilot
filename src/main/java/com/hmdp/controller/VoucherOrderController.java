@@ -39,6 +39,16 @@ public class VoucherOrderController {
         return voucherOrderService.queryMyOrders();
     }
 
+    @PostMapping("{id}/pay")
+    public Result payVoucherOrder(@PathVariable("id") Long orderId) {
+        return voucherOrderService.payVoucherOrder(orderId);
+    }
+
+    @PostMapping("{id}/redeem")
+    public Result redeemVoucherOrder(@PathVariable("id") Long orderId) {
+        return voucherOrderService.redeemVoucherOrder(orderId);
+    }
+
     @GetMapping("status/{id}")
     public Result querySeckillOrder(@PathVariable("id") Long orderId) {
         return voucherOrderService.querySeckillOrder(orderId);

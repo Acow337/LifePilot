@@ -111,6 +111,7 @@ export interface SeckillOrderResult {
   orderId: number
   state: SeckillOrderState
   status?: number
+  statusText?: string
   message?: string
 }
 

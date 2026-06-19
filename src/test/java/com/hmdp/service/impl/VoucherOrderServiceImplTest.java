@@ -75,7 +75,7 @@ class VoucherOrderServiceImplTest {
         verify(orderService).save(captor.capture());
         assertEquals(9002L, captor.getValue().getUserId());
         assertEquals(9001L, captor.getValue().getVoucherId());
-        assertEquals(2, captor.getValue().getStatus());
+        assertEquals(1, captor.getValue().getStatus());
     }
 
     @Test
@@ -122,5 +122,59 @@ class VoucherOrderServiceImplTest {
         assertEquals("星河咖啡 50 元代金券", row.get("voucherTitle"));
         assertEquals("星河手冲咖啡馆", row.get("shopName"));
         assertTrue(row.containsKey("statusText"));
+    }
+
+    @Test
+    void payVoucherOrderChangesUnpaidOrderToPaid() {
+        VoucherOrder order = new VoucherOrder();
+        order.setId(123456L);
+        order.setUserId(9002L);
+        order.setVoucherId(9001L);
+        order.setStatus(1);
+        org.mockito.Mockito.doReturn(order).when(orderService).getById(123456L);
+        org.mockito.Mockito.doReturn(true).when(orderService).updateById(any(VoucherOrder.class));
+
+        Result result = orderService.payVoucherOrder(123456L);
+
+        Map<?, ?> data = (Map<?, ?>) result.getData();
+        assertEquals(123456L, data.get("orderId"));
+        assertEquals(2, data.get("status"));
+        assertEquals("已支付", data.get("statusText"));
+        ArgumentCaptor<VoucherOrder> captor = ArgumentCaptor.forClass(VoucherOrder.class);
+        verify(orderService).updateById(captor.capture());
+        assertEquals(2, captor.getValue().getStatus());
+    }
+
+    @Test
+    void redeemVoucherOrderChangesPaidOrderToUsed() {
+        VoucherOrder order = new VoucherOrder();
+        order.setId(123456L);
+        order.setUserId(9002L);
+        order.setVoucherId(9001L);
+        order.setStatus(2);
+        org.mockito.Mockito.doReturn(order).when(orderService).getById(123456L);
+        org.mockito.Mockito.doReturn(true).when(orderService).updateById(any(VoucherOrder.class));
+
+        Result result = orderService.redeemVoucherOrder(123456L);
+
+        Map<?, ?> data = (Map<?, ?>) result.getData();
+        assertEquals(123456L, data.get("orderId"));
+        assertEquals(3, data.get("status"));
+        assertEquals("已核销", data.get("statusText"));
+        ArgumentCaptor<VoucherOrder> captor = ArgumentCaptor.forClass(VoucherOrder.class);
+        verify(orderService).updateById(captor.capture());
+        assertEquals(3, captor.getValue().getStatus());
+    }
+
+    @Test
+    void redeemVoucherOrderRejectsUnpaidOrder() {
+        VoucherOrder order = new VoucherOrder();
+        order.setId(123456L);
+        order.setUserId(9002L);
+        order.setVoucherId(9001L);
+        order.setStatus(1);
+        org.mockito.Mockito.doReturn(order).when(orderService).getById(123456L);
+
+        assertThrows(BizException.class, () -> orderService.redeemVoucherOrder(123456L));
     }
 }

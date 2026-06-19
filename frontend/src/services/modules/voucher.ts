@@ -10,3 +10,7 @@ export const buyVoucher = (id: number) => apiPost<SeckillOrderResult>(`/voucher-
 export const querySeckillOrderStatus = (orderId: number) => apiGet<SeckillOrderResult>(`/voucher-order/status/${orderId}`)
 
 export const getMyVoucherOrders = () => apiGet<VoucherOrder[]>('/voucher-order/my')
+
+export const payVoucherOrder = (orderId: number) => apiPost<SeckillOrderResult>(`/voucher-order/${orderId}/pay`)
+
+export const redeemVoucherOrder = (orderId: number) => apiPost<SeckillOrderResult>(`/voucher-order/${orderId}/redeem`)

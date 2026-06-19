@@ -1,6 +1,7 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getMyVoucherOrders } from '../services/modules/voucher'
+import { getMyVoucherOrders, payVoucherOrder } from '../services/modules/voucher'
 import { formatCentPrice, formatDateTime } from '../utils/format'
 
 const statusClass = (status?: number) => {
@@ -17,10 +18,25 @@ const statusClass = (status?: number) => {
 }
 
 export function OrdersPage() {
+  const [tip, setTip] = useState('')
   const { data: orders = [], isLoading, error, refetch } = useQuery({
     queryKey: ['my-voucher-orders'],
     queryFn: getMyVoucherOrders,
   })
+  const payMutation = useMutation({
+    mutationFn: (orderId: number) => payVoucherOrder(orderId),
+  })
+
+  const handlePay = async (orderId: number) => {
+    setTip('')
+    try {
+      const result = await payMutation.mutateAsync(orderId)
+      setTip(result.message || '支付成功')
+      await refetch()
+    } catch (e) {
+      setTip((e as Error).message || '支付失败，请稍后重试')
+    }
+  }
 
   return (
     <div className="page fade-in">
@@ -37,6 +53,7 @@ export function OrdersPage() {
 
         {isLoading ? <p className="muted">订单加载中...</p> : null}
         {error ? <p className="error-text">订单加载失败，请确认已登录</p> : null}
+        {tip ? <p className="muted">{tip}</p> : null}
         {!isLoading && !error && orders.length === 0 ? (
           <div className="empty-state">
             <h3>还没有订单</h3>
@@ -68,6 +85,15 @@ export function OrdersPage() {
                 {order.payTime ? <span>支付 {formatDateTime(order.payTime)}</span> : null}
                 {order.useTime ? <span>核销 {formatDateTime(order.useTime)}</span> : null}
                 {order.refundTime ? <span>退款 {formatDateTime(order.refundTime)}</span> : null}
+              </div>
+              <div className="order-actions">
+                {order.status === 1 ? (
+                  <button className="primary-btn" onClick={() => handlePay(order.id)} disabled={payMutation.isPending}>
+                    {payMutation.isPending ? '支付中...' : '模拟支付'}
+                  </button>
+                ) : null}
+                {order.status === 2 ? <span className="redeem-code">核销码：{order.id}</span> : null}
+                {order.status === 3 ? <span className="status-pill ok">已完成核销</span> : null}
               </div>
             </article>
           ))}

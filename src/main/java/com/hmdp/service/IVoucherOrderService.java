@@ -22,4 +22,8 @@ public interface IVoucherOrderService extends IService<VoucherOrder> {
 
     Result queryMyOrders();
 
+    Result payVoucherOrder(Long orderId);
+
+    Result redeemVoucherOrder(Long orderId);
+
 }
