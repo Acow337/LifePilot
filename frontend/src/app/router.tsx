@@ -3,6 +3,7 @@ import App from '../App'
 import { HomePage } from '../pages/HomePage'
 import { LoginPage } from '../pages/LoginPage'
 import { ShopDetailPage } from '../pages/ShopDetailPage'
+import { BlogDetailPage } from '../pages/BlogDetailPage'
 import { ShopListPage } from '../pages/ShopListPage'
 import { AdminLayout } from '../pages/admin/AdminLayout'
 import { AdminUsersPage } from '../pages/admin/AdminUsersPage'
@@ -10,6 +11,7 @@ import { AdminBlogsPage } from '../pages/admin/AdminBlogsPage'
 import { AdminShopsPage } from '../pages/admin/AdminShopsPage'
 import { AdminVouchersPage } from '../pages/admin/AdminVouchersPage'
 import { AdminLogsPage } from '../pages/admin/AdminLogsPage'
+import { AdminSeckillDlqPage } from '../pages/admin/AdminSeckillDlqPage'
 
 export const router = createBrowserRouter([
   {
@@ -31,6 +33,10 @@ export const router = createBrowserRouter([
       {
         path: 'shop/:id',
         element: <ShopDetailPage />,
+      },
+      {
+        path: 'blog/:id',
+        element: <BlogDetailPage />,
       },
       {
         path: 'admin',
@@ -55,6 +61,10 @@ export const router = createBrowserRouter([
           {
             path: 'vouchers',
             element: <AdminVouchersPage />,
+          },
+          {
+            path: 'seckill-dlq',
+            element: <AdminSeckillDlqPage />,
           },
           {
             path: 'logs',

@@ -26,7 +26,7 @@ ALTER TABLE `tb_blog`
 
 -- 3) 秒杀订单一人一单唯一约束（防重兜底）
 ALTER TABLE `tb_voucher_order`
-  ADD UNIQUE KEY `uk_user_voucher` (`user_id`, `voucher_id`);
+  ADD UNIQUE KEY IF NOT EXISTS `uk_user_voucher` (`user_id`, `voucher_id`);
 
 -- 4) 评论查询索引（评论列表/用户评论列表/回复查询）
 ALTER TABLE `tb_blog_comments`

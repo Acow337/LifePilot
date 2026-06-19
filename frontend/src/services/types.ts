@@ -1,5 +1,6 @@
 export interface ApiResult<T> {
   success: boolean
+  errorCode?: string | null
   errorMsg: string | null
   data: T
   total: number | null
@@ -104,6 +105,54 @@ export interface Voucher {
   createTime?: string
 }
 
+export type SeckillOrderState = 'PENDING' | 'SUCCESS' | 'FAIL' | 'UNKNOWN'
+
+export interface SeckillOrderResult {
+  orderId: number
+  state: SeckillOrderState
+  status?: number
+  message?: string
+}
+
+export interface SeckillDlqMessage {
+  deliveryTag?: number
+  routingKey?: string
+  redeliver?: boolean
+  messageId?: string
+  timestamp?: string
+  orderId?: number
+  voucherId?: number
+  payload?: string
+}
+
+export interface SeckillDlqSnapshot {
+  queue: string
+  messageCount: number
+  limit: number
+  messages: SeckillDlqMessage[]
+}
+
+export interface SeckillDlqReplayResult {
+  requested: number
+  replayed: number
+  failed: number
+  scanned: number
+  remaining: number
+  voucherId?: number
+  replayedOrderIds?: number[]
+  failures?: string[]
+}
+
+export interface SeckillDlqReplayPreviewResult {
+  requested: number
+  canReplay: number
+  scanned: number
+  remaining: number
+  voucherId?: number
+  sampleOrderIds?: number[]
+  note?: string
+}
+
 export interface AdminLog {
   id: number
   operatorId: number
@@ -113,4 +162,26 @@ export interface AdminLog {
   targetId: number
   detail?: string
   createTime?: string
+}
+
+export interface ChatBotRequest {
+  session_id: string
+  user_id: string
+  message: string
+  user_token?: string
+}
+
+export interface ChatBotResponse {
+  answer: string
+  used_tools?: string[]
+  suggestions?: string[]
+  cards?: ChatCard[]
+}
+
+export interface ChatCard {
+  type: 'shop' | 'voucher' | 'reference'
+  title: string
+  subtitle?: string
+  image?: string
+  meta?: Record<string, string | number | null | undefined>
 }

@@ -1,5 +1,6 @@
 HELP.md
 target/
+.DS_Store
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
@@ -41,3 +42,21 @@ frontend/dist/
 
 AGENTS.md
 account-info.txt
+.aimate/
+.codex/
+
+### Local dev runtime ###
+.dev-logs/
+.dev-pids/
+.env
+.env.*
+!.env.example
+
+### Customer service bot ###
+cs-bot-python/.env
+cs-bot-python/.venv/
+cs-bot-python/__pycache__/
+cs-bot-python/app/__pycache__/
+cs-bot-python/tests/__pycache__/
+cs-bot-python/.pytest_cache/
+cs-bot-python/**/*.pyc

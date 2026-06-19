@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { CustomerServiceWidget } from './components/CustomerServiceWidget'
 import { getMe } from './services/modules/auth'
 import { useAuthStore } from './store/auth'
 
@@ -49,6 +50,7 @@ function App() {
       <main className="main">
         <Outlet />
       </main>
+      <CustomerServiceWidget />
     </div>
   )
 }

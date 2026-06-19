@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { FallbackImage } from '../../components/FallbackImage'
 import { getAdminBlogs, reviewBlog } from '../../services/modules/admin'
 import { brief, formatDateTime, pickFirstImage } from '../../utils/format'
 
@@ -76,7 +77,7 @@ export function AdminBlogsPage() {
                 <td>
                   <div className="admin-title-cell">
                     {pickFirstImage(blog.images) ? (
-                      <img src={pickFirstImage(blog.images)} alt={blog.title} className="admin-thumb" />
+                      <FallbackImage src={pickFirstImage(blog.images)} alt={blog.title} className="admin-thumb" />
                     ) : null}
                     <div>
                       <strong>{blog.title}</strong>

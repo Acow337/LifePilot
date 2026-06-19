@@ -8,6 +8,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.hmdp.dto.Result;
 import com.hmdp.entity.Shop;
 import com.hmdp.entity.ShopType;
+import com.hmdp.enums.ErrorCode;
+import com.hmdp.exception.BizException;
 import com.hmdp.mapper.ShopMapper;
 import com.hmdp.service.IShopService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -57,7 +59,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
 //        Shop shop = querywithjichuan_mutex(id);
 //       Shop shop = queryWithLogicalExpire(id);
         if (shop == null) {
-            return Result.fail("店铺不存在！！");
+            throw new BizException(ErrorCode.NOT_FOUND, "店铺不存在");
         }
         return Result.ok(shop);
     }
@@ -189,7 +191,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
     public Result update(Shop shop) {
 //        首先先判一下空
         if (shop.getId() == null){
-            return Result.fail("店铺id不能为空！！");
+            throw new BizException(ErrorCode.BAD_REQUEST, "店铺id不能为空");
         }
         //先修改数据库
         updateById(shop);
@@ -299,20 +301,23 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
     @Override
     public Result createAdminShop(Shop shop) {
         if (shop == null) {
-            return Result.fail("店铺参数不能为空");
+            throw new BizException(ErrorCode.BAD_REQUEST, "店铺参数不能为空");
         }
         boolean success = save(shop);
-        return success ? Result.ok(shop.getId()) : Result.fail("创建店铺失败");
+        if (!success) {
+            throw new BizException("创建店铺失败");
+        }
+        return Result.ok(shop.getId());
     }
 
     @Override
     public Result updateAdminShop(Long shopId, Shop shop) {
         if (shopId == null || shop == null) {
-            return Result.fail("参数不能为空");
+            throw new BizException(ErrorCode.BAD_REQUEST, "参数不能为空");
         }
         Shop existed = getById(shopId);
         if (existed == null) {
-            return Result.fail("店铺不存在");
+            throw new BizException(ErrorCode.NOT_FOUND, "店铺不存在");
         }
         shop.setId(shopId);
         return update(shop);

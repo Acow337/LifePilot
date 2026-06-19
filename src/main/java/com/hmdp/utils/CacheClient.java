@@ -21,9 +21,6 @@ import static com.hmdp.utils.RedisConstants.LOCK_SHOP_KEY;
 @Slf4j
 @Component
 public class CacheClient {
-    //来自鄢坤的更改
-    //更改2
-    //更改3
     @Resource
     private StringRedisTemplate stringRedisTemplate;
     private static final ExecutorService CACHE_REBUILD_EXECUTOR = Executors.newFixedThreadPool(10);
@@ -60,10 +57,8 @@ public class CacheClient {
             stringRedisTemplate.opsForValue().set(key, "", CACHE_NULL_TTL, TimeUnit.MINUTES);
             return null;
         }
-        //查到了则转为json字符串
-        String jsonStr = JSONUtil.toJsonStr(r);
         //并存入redis，设置TTL
-        this.set(key, jsonStr, time, timeUnit);
+        this.set(key, r, time, timeUnit);
         //最终把查询到的商户信息返回给前端
         return r;
     }

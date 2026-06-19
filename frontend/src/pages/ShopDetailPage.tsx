@@ -1,12 +1,16 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { FallbackImage } from '../components/FallbackImage'
 import { getShopDetail } from '../services/modules/shop'
-import { getVoucherList, seckillVoucher } from '../services/modules/voucher'
+import { getVoucherList, querySeckillOrderStatus, seckillVoucher } from '../services/modules/voucher'
 import { formatPrice, formatScore, pickFirstImage } from '../utils/format'
 
 export function ShopDetailPage() {
   const { id } = useParams()
   const shopId = Number(id)
+  const [seckillTip, setSeckillTip] = useState('')
+  const [processingVoucherId, setProcessingVoucherId] = useState<number | null>(null)
 
   const { data: shop, isLoading, error } = useQuery({
     queryKey: ['shop-detail', shopId],
@@ -23,6 +27,41 @@ export function ShopDetailPage() {
   const seckillMutation = useMutation({
     mutationFn: (voucherId: number) => seckillVoucher(voucherId),
   })
+
+  const pollSeckillStatus = async (orderId: number) => {
+    for (let i = 0; i < 15; i++) {
+      await new Promise((resolve) => window.setTimeout(resolve, 1000))
+      const status = await querySeckillOrderStatus(orderId)
+      if (status.state === 'PENDING') {
+        continue
+      }
+      if (status.state === 'SUCCESS') {
+        setSeckillTip(`抢购成功，订单号：${orderId}`)
+        return
+      }
+      setSeckillTip(status.message || '抢购失败，请稍后重试')
+      return
+    }
+    setSeckillTip(`订单仍在排队中，订单号：${orderId}，请稍后刷新`)
+  }
+
+  const handleSeckill = async (voucherId: number) => {
+    setProcessingVoucherId(voucherId)
+    setSeckillTip('')
+    try {
+      const result = await seckillMutation.mutateAsync(voucherId)
+      if (result.state === 'SUCCESS') {
+        setSeckillTip(`抢购成功，订单号：${result.orderId}`)
+        return
+      }
+      setSeckillTip(result.message || '抢购请求已受理，正在排队处理')
+      await pollSeckillStatus(result.orderId)
+    } catch (e) {
+      setSeckillTip((e as Error).message || '抢购失败，请稍后重试')
+    } finally {
+      setProcessingVoucherId(null)
+    }
+  }
 
   if (!shopId || Number.isNaN(shopId)) {
     return (
@@ -48,7 +87,7 @@ export function ShopDetailPage() {
         {shop ? (
           <article className="detail-card">
             {pickFirstImage(shop.images) ? (
-              <img src={pickFirstImage(shop.images)} alt={shop.name} className="detail-cover" />
+              <FallbackImage src={pickFirstImage(shop.images)} alt={shop.name} className="detail-cover" />
             ) : null}
             <div className="detail-body">
               <h1>{shop.name}</h1>
@@ -68,6 +107,7 @@ export function ShopDetailPage() {
         <div className="section-head">
           <h2>优惠券</h2>
         </div>
+        {seckillTip ? <p className="muted">{seckillTip}</p> : null}
         <div className="grid cards-2">
           {vouchers.map((voucher) => (
             <article key={voucher.id} className="card">
@@ -80,10 +120,10 @@ export function ShopDetailPage() {
                 </div>
                 <button
                   className="primary-btn"
-                  onClick={() => seckillMutation.mutate(voucher.id)}
-                  disabled={seckillMutation.isPending}
+                  onClick={() => handleSeckill(voucher.id)}
+                  disabled={processingVoucherId === voucher.id}
                 >
-                  {seckillMutation.isPending ? '处理中...' : '立即抢购'}
+                  {processingVoucherId === voucher.id ? '处理中...' : '立即抢购'}
                 </button>
               </div>
             </article>

@@ -15,6 +15,23 @@ Redis服务器版本不能低于6.2，获取附近的商家信息GEOSEARCH 命�
 
 RabbitMQ版本为3.9
 
+## 本地快速启动（统一脚本）
+
+```bash
+brew services start redis
+brew services start mysql
+brew services start rabbitmq
+
+./scripts/init-db.sh
+./scripts/start-backend-dev.sh
+./scripts/start-frontend-dev.sh
+./scripts/start-bot-dev.sh
+```
+
+默认 Spring Profile 为 `dev`，可通过 `SPRING_PROFILES_ACTIVE` 切换环境。
+图片上传目录通过 `HMDP_UPLOAD_DIR` 配置，默认值：`./nginx-1.18.0/html/hmdp/imgs`。
+智能客服服务默认运行在 `http://127.0.0.1:9000`，需要先配置 `cs-bot-python/.env` 中的 `DEEPSEEK_API_KEY`。
+
 | 技术 | 说明 |
 | --- | --- |
 | SpringBoot | 容器+MVC框架 |
@@ -37,4 +54,3 @@ RabbitMQ版本为3.9
 redis-zset实现用户二级限流，一级限流(5分钟内3次短信仍然登录失败->设计为禁止登录，往redis中写入一个10分钟过期的string并升级为二级限流)、二级限流(5分钟内3次短信仍然登录失败设计为禁止登录，往redis中写入一个30分钟过期的string并重新设置为二级限流)
 
 首先检查一级和二级限制条件，然后分别计算了过去1分钟和过去5分钟内发送验证码的次数。如果过去1分钟内已经发送了一次验证码，或者过去5分钟内发送的验证码次数达到了5次或者是8、11、14...次，那么就会进入相应的限制条件，并向用户发送错误消息。如果没有触发任何限制条件，那么就会生成验证码并发送，然后更新发送时间和次数。
-

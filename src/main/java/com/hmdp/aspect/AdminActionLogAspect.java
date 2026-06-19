@@ -55,6 +55,15 @@ public class AdminActionLogAspect {
             HttpServletRequest request = requestAttributes.getRequest();
             detail.put("method", request.getMethod());
             detail.put("uri", request.getRequestURI());
+            detail.put("query", request.getQueryString());
+        }
+
+        if (ret instanceof Result) {
+            Result result = (Result) ret;
+            detail.put("resultSuccess", result.getSuccess());
+            if (result.getData() != null) {
+                detail.put("resultData", result.getData());
+            }
         }
 
         AdminLog adminLog = new AdminLog()

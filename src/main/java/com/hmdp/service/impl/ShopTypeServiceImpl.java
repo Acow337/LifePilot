@@ -3,6 +3,8 @@ package com.hmdp.service.impl;
 import cn.hutool.json.JSONUtil;
 import com.hmdp.dto.Result;
 import com.hmdp.entity.ShopType;
+import com.hmdp.enums.ErrorCode;
+import com.hmdp.exception.BizException;
 import com.hmdp.mapper.ShopTypeMapper;
 import com.hmdp.service.IShopTypeService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -44,7 +46,7 @@ public class ShopTypeServiceImpl extends ServiceImpl<ShopTypeMapper, ShopType> i
         //否则去数据库中查
         List<ShopType> tmp = query().orderByAsc("sort").list();
         if (tmp == null){
-            return Result.fail("店铺类型不存在！！");
+            throw new BizException(ErrorCode.NOT_FOUND, "店铺类型不存在");
         }
         //查到了转为json字符串，存入redis
         for (ShopType shopType : tmp) {

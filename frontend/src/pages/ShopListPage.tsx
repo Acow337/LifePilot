@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { type FormEvent, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { FallbackImage } from '../components/FallbackImage'
 import { getShopByType, getShopTypes, searchShopByName } from '../services/modules/shop'
 import { formatPrice, formatScore, pickFirstImage } from '../utils/format'
 
@@ -80,7 +81,7 @@ export function ShopListPage() {
             const cover = pickFirstImage(shop.images)
             return (
               <Link key={shop.id} to={`/shop/${shop.id}`} className="card shop-card">
-                {cover ? <img src={cover} alt={shop.name} className="card-cover" /> : null}
+                {cover ? <FallbackImage src={cover} alt={shop.name} className="card-cover" /> : null}
                 <div className="card-body">
                   <h3>{shop.name}</h3>
                   <p className="muted">{shop.area || shop.address || '暂无地址信息'}</p>

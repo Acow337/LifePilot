@@ -6,6 +6,8 @@ export const getHotBlogs = (current = 1) =>
     params: { current },
   })
 
+export const getBlogById = (id: number) => apiGet<Blog>(`/blog/${id}`)
+
 export const getBlogComments = async (blogId: number, current = 1) => {
   const result = await apiGetWithMeta<BlogComment[]>(`/blog-comments/of/blog/${blogId}`, {
     params: { current },

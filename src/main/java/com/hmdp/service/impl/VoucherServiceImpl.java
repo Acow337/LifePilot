@@ -16,8 +16,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static com.hmdp.utils.RedisConstants.SECKILL_BEGIN_KEY;
 import static com.hmdp.utils.RedisConstants.SECKILL_END_KEY;
@@ -185,7 +187,13 @@ public class VoucherServiceImpl extends ServiceImpl<VoucherMapper, Voucher> impl
             return;
         }
         stringRedisTemplate.opsForValue().set(SECKILL_STOCK_KEY + voucherId, stock.toString());
-        stringRedisTemplate.opsForValue().set(SECKILL_BEGIN_KEY + voucherId, String.valueOf(beginTime.atZone(java.time.ZoneId.systemDefault()).toEpochSecond()));
-        stringRedisTemplate.opsForValue().set(SECKILL_END_KEY + voucherId, String.valueOf(endTime.atZone(java.time.ZoneId.systemDefault()).toEpochSecond()));
+        stringRedisTemplate.opsForValue().set(SECKILL_BEGIN_KEY + voucherId, String.valueOf(beginTime.atZone(ZoneId.systemDefault()).toEpochSecond()));
+        stringRedisTemplate.opsForValue().set(SECKILL_END_KEY + voucherId, String.valueOf(endTime.atZone(ZoneId.systemDefault()).toEpochSecond()));
+
+        long keepSeconds = Math.max(3600L,
+                endTime.atZone(ZoneId.systemDefault()).toEpochSecond() - java.time.Instant.now().getEpochSecond() + TimeUnit.DAYS.toSeconds(1));
+        stringRedisTemplate.expire(SECKILL_STOCK_KEY + voucherId, keepSeconds, TimeUnit.SECONDS);
+        stringRedisTemplate.expire(SECKILL_BEGIN_KEY + voucherId, keepSeconds, TimeUnit.SECONDS);
+        stringRedisTemplate.expire(SECKILL_END_KEY + voucherId, keepSeconds, TimeUnit.SECONDS);
     }
 }

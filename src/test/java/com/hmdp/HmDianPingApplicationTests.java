@@ -2,6 +2,7 @@ package com.hmdp;
 
 import com.hmdp.entity.Shop;
 import com.hmdp.service.impl.ShopServiceImpl;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -18,6 +19,7 @@ import java.util.stream.Collectors;
 import static com.hmdp.utils.RedisConstants.SHOP_GEO_KEY;
 
 @SpringBootTest
+@Disabled("Manual data-loading tests that touch real MySQL/Redis")
 class HmDianPingApplicationTests {
     @Autowired
     private ShopServiceImpl shopService;

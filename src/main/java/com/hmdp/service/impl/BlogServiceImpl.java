@@ -46,8 +46,6 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
     @Resource
     private IUserService userService;
 
-    @Autowired
-    private IBlogService blogService;
     @Resource
     private StringRedisTemplate stringRedisTemplate;
 
@@ -162,7 +160,7 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
         blog.setUserId(user.getId());
         // 保存探店博文
         blog.setStatus(SystemConstants.BLOG_STATUS_NORMAL);
-        boolean isSuccess = blogService.save(blog);
+        boolean isSuccess = save(blog);
         if (!isSuccess)
         {
             return Result.fail("新增笔记失败！");

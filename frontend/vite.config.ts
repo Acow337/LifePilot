@@ -332,6 +332,19 @@ export default defineConfig(({ mode, command }) => {
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api/, ''),
         },
+        '/imgs': {
+          target: 'http://127.0.0.1:8081',
+          changeOrigin: true,
+        },
+        '/types': {
+          target: 'http://127.0.0.1:8081',
+          changeOrigin: true,
+        },
+        '/bot': {
+          target: 'http://127.0.0.1:9000',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/bot/, ''),
+        },
       },
     },
   }

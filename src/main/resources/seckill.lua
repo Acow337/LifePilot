@@ -54,4 +54,11 @@ end
 redis.call('incrby',stockKey,-1)
 -- 3.5下单并保存用户
 redis.call('sadd',orderKey,userId)
+
+-- 3.6 避免历史秒杀key长期占用内存（活动结束后保留1天）
+local expireAt = tonumber(endAt) + 86400
+redis.call('expireat', stockKey, expireAt)
+redis.call('expireat', orderKey, expireAt)
+redis.call('expireat', beginKey, expireAt)
+redis.call('expireat', endKey, expireAt)
 return 0

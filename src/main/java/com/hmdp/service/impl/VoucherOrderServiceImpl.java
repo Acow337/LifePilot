@@ -1,10 +1,13 @@
 package com.hmdp.service.impl;
 
-import com.alibaba.fastjson.JSON;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.util.concurrent.RateLimiter;
 import com.hmdp.dto.Result;
 import com.hmdp.entity.SeckillVoucher;
 import com.hmdp.entity.VoucherOrder;
+import com.hmdp.enums.ErrorCode;
+import com.hmdp.exception.BizException;
 import com.hmdp.mapper.VoucherOrderMapper;
 import com.hmdp.rebbitmq.MQSender;
 import com.hmdp.service.ISeckillVoucherService;
@@ -25,11 +28,16 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.annotation.Resource;
 import java.time.ZoneId;
 import java.time.LocalDateTime;
+import java.time.Instant;
+import java.util.HashMap;
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static com.hmdp.utils.RedisConstants.SECKILL_BEGIN_KEY;
 import static com.hmdp.utils.RedisConstants.SECKILL_END_KEY;
+import static com.hmdp.utils.RedisConstants.SECKILL_PENDING_ORDER_KEY;
+import static com.hmdp.utils.RedisConstants.SECKILL_RESULT_KEY;
 import static com.hmdp.utils.RedisConstants.SECKILL_STOCK_KEY;
 
 /**
@@ -47,6 +55,9 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     @Resource
     private MQSender mqSender;
 
+    @Resource
+    private ObjectMapper objectMapper;
+
     private RateLimiter rateLimiter=RateLimiter.create(10);
 
     @Resource
@@ -57,18 +68,23 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 
     //lua脚本
     private static final DefaultRedisScript<Long> SECKILL_SCRIPT;
+    private static final DefaultRedisScript<Long> SECKILL_ROLLBACK_SCRIPT;
 
     static {
         SECKILL_SCRIPT = new DefaultRedisScript<>();
         SECKILL_SCRIPT.setLocation(new ClassPathResource("seckill.lua"));
         SECKILL_SCRIPT.setResultType(Long.class);
+
+        SECKILL_ROLLBACK_SCRIPT = new DefaultRedisScript<>();
+        SECKILL_ROLLBACK_SCRIPT.setLocation(new ClassPathResource("seckill_rollback.lua"));
+        SECKILL_ROLLBACK_SCRIPT.setResultType(Long.class);
     }
 
     @Override
     public Result seckillVoucher(Long voucherId) {
         //令牌桶算法 限流
         if (!rateLimiter.tryAcquire(1000, TimeUnit.MILLISECONDS)){
-            return Result.fail("目前网络正忙，请重试");
+            throw new BizException(ErrorCode.BAD_REQUEST, "目前网络正忙，请重试");
         }
         //1.执行lua脚本
         Long userId = UserHolder.getUser().getId();
@@ -92,24 +108,24 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 
         //2.判断结果为0
         if (r == null) {
-            return Result.fail("秒杀服务异常，请稍后重试");
+            throw new BizException(ErrorCode.INTERNAL_ERROR, "秒杀服务异常，请稍后重试");
         }
         int result = r.intValue();
         if (result != 0) {
             //2.1不为0代表没有购买资格
             switch (result) {
                 case 1:
-                    return Result.fail("库存不足");
+                    throw new BizException(ErrorCode.BIZ_ERROR, "库存不足");
                 case 2:
-                    return Result.fail("该用户重复下单");
+                    throw new BizException(ErrorCode.BIZ_ERROR, "该用户重复下单");
                 case 3:
-                    return Result.fail("秒杀尚未开始");
+                    throw new BizException(ErrorCode.BAD_REQUEST, "秒杀尚未开始");
                 case 4:
-                    return Result.fail("秒杀已结束");
+                    throw new BizException(ErrorCode.BAD_REQUEST, "秒杀已结束");
                 case 5:
-                    return Result.fail("秒杀活动不存在或未初始化");
+                    throw new BizException(ErrorCode.NOT_FOUND, "秒杀活动不存在或未初始化");
                 default:
-                    return Result.fail("秒杀失败，请稍后重试");
+                    throw new BizException(ErrorCode.BIZ_ERROR, "秒杀失败，请稍后重试");
             }
         }
         //2.2为0代表有购买资格,将下单信息保存到阻塞队列
@@ -125,11 +141,24 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         voucherOrder.setVoucherId(voucherId);
 
         //2.7将信息放入MQ中
-        mqSender.sendSeckillMessage(JSON.toJSONString(voucherOrder));
+        stringRedisTemplate.opsForValue().set(SECKILL_PENDING_ORDER_KEY + orderId, "1", 10, TimeUnit.MINUTES);
+        try {
+            mqSender.sendSeckillMessage(objectMapper.writeValueAsString(voucherOrder));
+        } catch (JsonProcessingException e) {
+            rollbackSeckillQualification(orderId, voucherId, userId, "FAIL:订单消息序列化失败");
+            throw new BizException(ErrorCode.INTERNAL_ERROR, "下单请求处理失败");
+        } catch (Exception e) {
+            rollbackSeckillQualification(orderId, voucherId, userId, "FAIL:消息投递失败");
+            throw new BizException(ErrorCode.BIZ_ERROR, "下单请求拥堵，请重试");
+        }
 
 
         //2.7 返回订单id
-        return Result.ok(orderId);
+        Map<String, Object> resultData = new HashMap<>(4);
+        resultData.put("orderId", orderId);
+        resultData.put("state", "PENDING");
+        resultData.put("message", "下单请求已受理，正在排队处理");
+        return Result.ok(resultData);
 //        单机模式下，使用synchronized实现锁
 //        synchronized (userId.toString().intern())
 //        {
@@ -137,6 +166,17 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 //            //    还得利用代理来生效，所以这个地方，我们需要获得原始的事务对象， 来操作事务
 //            return voucherOrderService.createVoucherOrder(voucherId);
 //        }
+    }
+
+    private void rollbackSeckillQualification(Long orderId, Long voucherId, Long userId, String result) {
+        stringRedisTemplate.delete(SECKILL_PENDING_ORDER_KEY + orderId);
+        stringRedisTemplate.execute(
+                SECKILL_ROLLBACK_SCRIPT,
+                Collections.emptyList(),
+                voucherId.toString(),
+                userId.toString()
+        );
+        stringRedisTemplate.opsForValue().set(SECKILL_RESULT_KEY + orderId, result, 10, TimeUnit.MINUTES);
     }
 
     private void warmUpSeckillMeta(Long voucherId) {
@@ -152,6 +192,48 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
                 String.valueOf(seckillVoucher.getBeginTime().atZone(ZoneId.systemDefault()).toEpochSecond()));
         stringRedisTemplate.opsForValue().set(SECKILL_END_KEY + voucherId,
                 String.valueOf(seckillVoucher.getEndTime().atZone(ZoneId.systemDefault()).toEpochSecond()));
+
+        long keepSeconds = Math.max(3600L,
+                seckillVoucher.getEndTime().atZone(ZoneId.systemDefault()).toEpochSecond() - Instant.now().getEpochSecond() + TimeUnit.DAYS.toSeconds(1));
+        stringRedisTemplate.expire(SECKILL_STOCK_KEY + voucherId, keepSeconds, TimeUnit.SECONDS);
+        stringRedisTemplate.expire(SECKILL_BEGIN_KEY + voucherId, keepSeconds, TimeUnit.SECONDS);
+        stringRedisTemplate.expire(SECKILL_END_KEY + voucherId, keepSeconds, TimeUnit.SECONDS);
+    }
+
+    @Override
+    public Result querySeckillOrder(Long orderId) {
+        if (orderId == null) {
+            throw new BizException(ErrorCode.BAD_REQUEST, "订单号不能为空");
+        }
+        Long userId = UserHolder.getUser().getId();
+        VoucherOrder order = query().eq("id", orderId).eq("user_id", userId).one();
+        if (order != null) {
+            Map<String, Object> data = new HashMap<>(4);
+            data.put("state", "SUCCESS");
+            data.put("orderId", orderId);
+            data.put("status", order.getStatus());
+            data.put("message", "下单成功");
+            return Result.ok(data);
+        }
+
+        String finalResult = stringRedisTemplate.opsForValue().get(SECKILL_RESULT_KEY + orderId);
+        if (finalResult != null) {
+            Map<String, Object> data = new HashMap<>(4);
+            data.put("state", finalResult.startsWith("FAIL") ? "FAIL" : "UNKNOWN");
+            data.put("orderId", orderId);
+            data.put("message", finalResult);
+            return Result.ok(data);
+        }
+
+        Boolean pending = stringRedisTemplate.hasKey(SECKILL_PENDING_ORDER_KEY + orderId);
+        if (Boolean.TRUE.equals(pending)) {
+            Map<String, Object> data = new HashMap<>(3);
+            data.put("state", "PENDING");
+            data.put("orderId", orderId);
+            data.put("message", "订单处理中，请稍后刷新");
+            return Result.ok(data);
+        }
+        throw new BizException(ErrorCode.NOT_FOUND, "订单不存在或已超出查询时效");
     }
 
 

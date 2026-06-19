@@ -1,5 +1,14 @@
-import { apiGetWithMeta, apiPatch, apiPost, apiPut } from '../http'
-import type { AdminLog, AdminUser, Blog, Shop, Voucher } from '../types'
+import { apiGet, apiGetWithMeta, apiPatch, apiPost, apiPut } from '../http'
+import type {
+  AdminLog,
+  SeckillDlqReplayPreviewResult,
+  AdminUser,
+  Blog,
+  SeckillDlqReplayResult,
+  SeckillDlqSnapshot,
+  Shop,
+  Voucher,
+} from '../types'
 
 interface PageParams {
   page?: number
@@ -83,3 +92,18 @@ export interface AdminLogQuery extends PageParams {
 }
 
 export const getAdminLogs = (params: AdminLogQuery) => apiGetWithMeta<AdminLog[]>('/admin/logs', { params })
+
+export const getAdminSeckillDlq = (limit = 20, voucherId?: number) =>
+  apiGet<SeckillDlqSnapshot>('/admin/seckill/dlq', {
+    params: { limit, voucherId: voucherId || undefined },
+  })
+
+export const replayAdminSeckillDlq = (limit = 20, voucherId?: number) =>
+  apiPost<SeckillDlqReplayResult>('/admin/seckill/dlq/replay', undefined, {
+    params: { limit, voucherId: voucherId || undefined },
+  })
+
+export const previewAdminSeckillDlqReplay = (limit = 20, voucherId?: number) =>
+  apiPost<SeckillDlqReplayPreviewResult>('/admin/seckill/dlq/replay/preview', undefined, {
+    params: { limit, voucherId: voucherId || undefined },
+  })

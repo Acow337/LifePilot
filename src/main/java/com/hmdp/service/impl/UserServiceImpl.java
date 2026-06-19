@@ -10,6 +10,8 @@ import com.hmdp.dto.LoginFormDTO;
 import com.hmdp.dto.Result;
 import com.hmdp.dto.UserDTO;
 import com.hmdp.entity.User;
+import com.hmdp.enums.ErrorCode;
+import com.hmdp.exception.BizException;
 import com.hmdp.mapper.UserMapper;
 import com.hmdp.service.IUserService;
 import com.hmdp.utils.MailUtils;
@@ -55,23 +57,20 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         // 1. 判断是否在一级限制条件内
         Boolean oneLevelLimit = stringRedisTemplate.opsForSet().isMember(ONE_LEVERLIMIT_KEY + phone, "1");
         if (oneLevelLimit != null && oneLevelLimit) {
-            // 在一级限制条件内，不能发送验证码
-            return Result.fail("您需要等5分钟后再请求");
+            throw new BizException(ErrorCode.BAD_REQUEST, "您需要等5分钟后再请求");
         }
 
 // 2. 判断是否在二级限制条件内
         Boolean twoLevelLimit = stringRedisTemplate.opsForSet().isMember(TWO_LEVERLIMIT_KEY + phone, "1");
         if (twoLevelLimit != null && twoLevelLimit) {
-            // 在二级限制条件内，不能发送验证码
-            return Result.fail("您需要等20分钟后再请求");
+            throw new BizException(ErrorCode.BAD_REQUEST, "您需要等20分钟后再请求");
         }
 
 // 3. 检查过去1分钟内发送验证码的次数
         long oneMinuteAgo = System.currentTimeMillis() - 60 * 1000;
         long count_oneminute = stringRedisTemplate.opsForZSet().count(SENDCODE_SENDTIME_KEY + phone, oneMinuteAgo, System.currentTimeMillis());
         if (count_oneminute >= 1) {
-            // 过去1分钟内已经发送了1次，不能再发送验证码
-            return Result.fail("距离上次发送时间不足1分钟，请1分钟后重试");
+            throw new BizException(ErrorCode.BAD_REQUEST, "距离上次发送时间不足1分钟，请1分钟后重试");
         }
 
         // 4. 检查发送验证码的次数
@@ -81,12 +80,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
             // 发送了8, 11, 14, ...次，进入二级限制
             stringRedisTemplate.opsForSet().add(TWO_LEVERLIMIT_KEY + phone, "1");
             stringRedisTemplate.expire(TWO_LEVERLIMIT_KEY + phone, 20, TimeUnit.MINUTES);
-            return Result.fail("接下来如需再发送，请等20分钟后再请求");
+            throw new BizException(ErrorCode.BAD_REQUEST, "接下来如需再发送，请等20分钟后再请求");
         } else if (count_fiveminute == 5) {
             // 过去5分钟内已经发送了5次，进入一级限制
             stringRedisTemplate.opsForSet().add(ONE_LEVERLIMIT_KEY + phone, "1");
             stringRedisTemplate.expire(ONE_LEVERLIMIT_KEY + phone, 5, TimeUnit.MINUTES);
-            return Result.fail("5分钟内已经发送了5次，接下来如需再发送请等待5分钟后重试");
+            throw new BizException(ErrorCode.BAD_REQUEST, "5分钟内已经发送了5次，接下来如需再发送请等待5分钟后重试");
         }
 
           //生成验证码
@@ -111,20 +110,20 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         String phone = loginForm.getPhone();
         String password = loginForm.getPassword();
         if (RegexUtils.isEmailInvalid(phone)) {
-            return Result.fail("邮箱格式不正确！！");
+            throw new BizException(ErrorCode.BAD_REQUEST, "邮箱格式不正确！！");
         }
         if (password == null || password.isEmpty()) {
-            return Result.fail("密码不能为空");
+            throw new BizException(ErrorCode.BAD_REQUEST, "密码不能为空");
         }
         User user = query().eq("phone", phone).one();
         if (user == null) {
-            return Result.fail("账号不存在");
+            throw new BizException(ErrorCode.NOT_FOUND, "账号不存在");
         }
         if (Integer.valueOf(SystemConstants.USER_STATUS_BANNED).equals(user.getStatus())) {
-            return Result.fail("账号已被封禁");
+            throw new BizException(ErrorCode.FORBIDDEN, "账号已被封禁");
         }
         if (!verifyPasswordAndAutoUpgrade(user, password)) {
-            return Result.fail("密码错误");
+            throw new BizException(ErrorCode.BAD_REQUEST, "密码错误");
         }
         String token = UUID.randomUUID().toString();
         UserDTO userDTO = BeanUtil.copyProperties(user, UserDTO.class);
@@ -237,45 +236,51 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     @Override
     public Result updateUserStatus(Long userId, Integer status) {
         if (userId == null || status == null) {
-            return Result.fail("参数不能为空");
+            throw new BizException(ErrorCode.BAD_REQUEST, "参数不能为空");
         }
         if (!Integer.valueOf(SystemConstants.USER_STATUS_NORMAL).equals(status)
                 && !Integer.valueOf(SystemConstants.USER_STATUS_BANNED).equals(status)) {
-            return Result.fail("用户状态非法");
+            throw new BizException(ErrorCode.BAD_REQUEST, "用户状态非法");
         }
         User user = getById(userId);
         if (user == null) {
-            return Result.fail("用户不存在");
+            throw new BizException(ErrorCode.NOT_FOUND, "用户不存在");
         }
         if (Integer.valueOf(SystemConstants.ROLE_ADMIN).equals(user.getRole())
                 && Integer.valueOf(SystemConstants.USER_STATUS_BANNED).equals(status)) {
-            return Result.fail("不能封禁管理员账号");
+            throw new BizException(ErrorCode.FORBIDDEN, "不能封禁管理员账号");
         }
         boolean success = update().set("status", status).eq("id", userId).update();
-        return success ? Result.ok() : Result.fail("更新用户状态失败");
+        if (!success) {
+            throw new BizException(ErrorCode.INTERNAL_ERROR, "更新用户状态失败");
+        }
+        return Result.ok();
     }
 
     @Override
     public Result updateUserRole(Long userId, Integer role) {
         if (userId == null || role == null) {
-            return Result.fail("参数不能为空");
+            throw new BizException(ErrorCode.BAD_REQUEST, "参数不能为空");
         }
         if (!Integer.valueOf(SystemConstants.ROLE_USER).equals(role)
                 && !Integer.valueOf(SystemConstants.ROLE_ADMIN).equals(role)) {
-            return Result.fail("用户角色非法");
+            throw new BizException(ErrorCode.BAD_REQUEST, "用户角色非法");
         }
         User user = getById(userId);
         if (user == null) {
-            return Result.fail("用户不存在");
+            throw new BizException(ErrorCode.NOT_FOUND, "用户不存在");
         }
         UserDTO operator = UserHolder.getUser();
         if (operator != null
                 && operator.getId().equals(userId)
                 && Integer.valueOf(SystemConstants.ROLE_USER).equals(role)) {
-            return Result.fail("不能取消自己的管理员身份");
+            throw new BizException(ErrorCode.FORBIDDEN, "不能取消自己的管理员身份");
         }
         boolean success = update().set("role", role).eq("id", userId).update();
-        return success ? Result.ok() : Result.fail("更新用户角色失败");
+        if (!success) {
+            throw new BizException(ErrorCode.INTERNAL_ERROR, "更新用户角色失败");
+        }
+        return Result.ok();
     }
 
     @Override
