@@ -177,4 +177,89 @@ class VoucherOrderServiceImplTest {
 
         assertThrows(BizException.class, () -> orderService.redeemVoucherOrder(123456L));
     }
+
+    @Test
+    void cancelVoucherOrderChangesUnpaidOrderToCanceled() {
+        VoucherOrder order = new VoucherOrder();
+        order.setId(123456L);
+        order.setUserId(9002L);
+        order.setVoucherId(9001L);
+        order.setStatus(1);
+        org.mockito.Mockito.doReturn(order).when(orderService).getById(123456L);
+        org.mockito.Mockito.doReturn(true).when(orderService).updateById(any(VoucherOrder.class));
+
+        Result result = orderService.cancelVoucherOrder(123456L);
+
+        Map<?, ?> data = (Map<?, ?>) result.getData();
+        assertEquals(4, data.get("status"));
+        assertEquals("已取消", data.get("statusText"));
+    }
+
+    @Test
+    void requestRefundChangesPaidOrderToRefunding() {
+        VoucherOrder order = new VoucherOrder();
+        order.setId(123456L);
+        order.setUserId(9002L);
+        order.setVoucherId(9001L);
+        order.setStatus(2);
+        org.mockito.Mockito.doReturn(order).when(orderService).getById(123456L);
+        org.mockito.Mockito.doReturn(true).when(orderService).updateById(any(VoucherOrder.class));
+
+        Result result = orderService.requestRefund(123456L);
+
+        Map<?, ?> data = (Map<?, ?>) result.getData();
+        assertEquals(5, data.get("status"));
+        assertEquals("退款中", data.get("statusText"));
+    }
+
+    @Test
+    void approveRefundChangesRefundingOrderToRefunded() {
+        VoucherOrder order = new VoucherOrder();
+        order.setId(123456L);
+        order.setUserId(9002L);
+        order.setVoucherId(9001L);
+        order.setStatus(5);
+        org.mockito.Mockito.doReturn(order).when(orderService).getById(123456L);
+        org.mockito.Mockito.doReturn(true).when(orderService).updateById(any(VoucherOrder.class));
+
+        Result result = orderService.approveRefund(123456L);
+
+        Map<?, ?> data = (Map<?, ?>) result.getData();
+        assertEquals(6, data.get("status"));
+        assertEquals("已退款", data.get("statusText"));
+    }
+
+    @Test
+    void rejectRefundChangesRefundingOrderBackToPaid() {
+        VoucherOrder order = new VoucherOrder();
+        order.setId(123456L);
+        order.setUserId(9002L);
+        order.setVoucherId(9001L);
+        order.setStatus(5);
+        org.mockito.Mockito.doReturn(order).when(orderService).getById(123456L);
+        org.mockito.Mockito.doReturn(true).when(orderService).updateById(any(VoucherOrder.class));
+
+        Result result = orderService.rejectRefund(123456L);
+
+        Map<?, ?> data = (Map<?, ?>) result.getData();
+        assertEquals(2, data.get("status"));
+        assertEquals("已支付", data.get("statusText"));
+    }
+
+    @Test
+    void cancelExpiredUnpaidOrdersReturnsCanceledCount() {
+        VoucherOrder expired = new VoucherOrder();
+        expired.setId(123456L);
+        expired.setUserId(9002L);
+        expired.setVoucherId(9001L);
+        expired.setStatus(1);
+        expired.setCreateTime(LocalDateTime.now().minusMinutes(20));
+        org.mockito.Mockito.doReturn(List.of(expired)).when(orderService).list(any());
+        org.mockito.Mockito.doReturn(true).when(orderService).updateBatchById(any());
+
+        Result result = orderService.cancelExpiredUnpaidOrders();
+
+        Map<?, ?> data = (Map<?, ?>) result.getData();
+        assertEquals(1, data.get("canceled"));
+    }
 }

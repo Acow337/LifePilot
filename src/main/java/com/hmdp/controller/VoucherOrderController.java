@@ -49,6 +49,31 @@ public class VoucherOrderController {
         return voucherOrderService.redeemVoucherOrder(orderId);
     }
 
+    @PostMapping("{id}/cancel")
+    public Result cancelVoucherOrder(@PathVariable("id") Long orderId) {
+        return voucherOrderService.cancelVoucherOrder(orderId);
+    }
+
+    @PostMapping("{id}/refund")
+    public Result requestRefund(@PathVariable("id") Long orderId) {
+        return voucherOrderService.requestRefund(orderId);
+    }
+
+    @PostMapping("{id}/refund/approve")
+    public Result approveRefund(@PathVariable("id") Long orderId) {
+        return voucherOrderService.approveRefund(orderId);
+    }
+
+    @PostMapping("{id}/refund/reject")
+    public Result rejectRefund(@PathVariable("id") Long orderId) {
+        return voucherOrderService.rejectRefund(orderId);
+    }
+
+    @PostMapping("expired/cancel")
+    public Result cancelExpiredUnpaidOrders() {
+        return voucherOrderService.cancelExpiredUnpaidOrders();
+    }
+
     @GetMapping("status/{id}")
     public Result querySeckillOrder(@PathVariable("id") Long orderId) {
         return voucherOrderService.querySeckillOrder(orderId);

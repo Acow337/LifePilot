@@ -14,3 +14,13 @@ export const getMyVoucherOrders = () => apiGet<VoucherOrder[]>('/voucher-order/m
 export const payVoucherOrder = (orderId: number) => apiPost<SeckillOrderResult>(`/voucher-order/${orderId}/pay`)
 
 export const redeemVoucherOrder = (orderId: number) => apiPost<SeckillOrderResult>(`/voucher-order/${orderId}/redeem`)
+
+export const cancelVoucherOrder = (orderId: number) => apiPost<SeckillOrderResult>(`/voucher-order/${orderId}/cancel`)
+
+export const requestVoucherRefund = (orderId: number) => apiPost<SeckillOrderResult>(`/voucher-order/${orderId}/refund`)
+
+export const approveVoucherRefund = (orderId: number) => apiPost<SeckillOrderResult>(`/voucher-order/${orderId}/refund/approve`)
+
+export const rejectVoucherRefund = (orderId: number) => apiPost<SeckillOrderResult>(`/voucher-order/${orderId}/refund/reject`)
+
+export const cancelExpiredVoucherOrders = () => apiPost<{ canceled: number; timeoutMinutes: number }>('/voucher-order/expired/cancel')

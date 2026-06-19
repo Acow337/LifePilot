@@ -13,6 +13,7 @@ import { AdminShopsPage } from '../pages/admin/AdminShopsPage'
 import { AdminVouchersPage } from '../pages/admin/AdminVouchersPage'
 import { AdminLogsPage } from '../pages/admin/AdminLogsPage'
 import { AdminRedeemPage } from '../pages/admin/AdminRedeemPage'
+import { AdminRefundsPage } from '../pages/admin/AdminRefundsPage'
 import { AdminSeckillDlqPage } from '../pages/admin/AdminSeckillDlqPage'
 
 export const router = createBrowserRouter([
@@ -71,6 +72,10 @@ export const router = createBrowserRouter([
           {
             path: 'redeem',
             element: <AdminRedeemPage />,
+          },
+          {
+            path: 'refunds',
+            element: <AdminRefundsPage />,
           },
           {
             path: 'seckill-dlq',

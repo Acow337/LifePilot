@@ -26,4 +26,14 @@ public interface IVoucherOrderService extends IService<VoucherOrder> {
 
     Result redeemVoucherOrder(Long orderId);
 
+    Result cancelVoucherOrder(Long orderId);
+
+    Result requestRefund(Long orderId);
+
+    Result approveRefund(Long orderId);
+
+    Result rejectRefund(Long orderId);
+
+    Result cancelExpiredUnpaidOrders();
+
 }

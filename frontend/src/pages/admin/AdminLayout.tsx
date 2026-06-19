@@ -9,6 +9,7 @@ const menus = [
   { to: '/admin/shops', label: '店铺管理' },
   { to: '/admin/vouchers', label: '优惠券管理' },
   { to: '/admin/redeem', label: '优惠券核销' },
+  { to: '/admin/refunds', label: '退款审核' },
   { to: '/admin/seckill-dlq', label: '秒杀死信' },
   { to: '/admin/logs', label: '操作日志' },
 ]

@@ -62,6 +62,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     private static final int ORDER_STATUS_CANCELED = 4;
     private static final int ORDER_STATUS_REFUNDING = 5;
     private static final int ORDER_STATUS_REFUNDED = 6;
+    private static final long ORDER_PAY_TIMEOUT_MINUTES = 15;
 
     @Resource
     private RedisIdWorker redisIdWorker;
@@ -342,6 +343,96 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
             throw new BizException(ErrorCode.BIZ_ERROR, "核销失败，请重试");
         }
         return Result.ok(toOrderState(order, "核销成功"));
+    }
+
+    @Override
+    @Transactional
+    public Result cancelVoucherOrder(Long orderId) {
+        VoucherOrder order = requireOrder(orderId);
+        Long userId = UserHolder.getUser().getId();
+        if (!userId.equals(order.getUserId())) {
+            throw new BizException(ErrorCode.FORBIDDEN, "无权操作该订单");
+        }
+        if (order.getStatus() == null || order.getStatus() != ORDER_STATUS_UNPAID) {
+            throw new BizException(ErrorCode.BIZ_ERROR, "仅未支付订单可取消");
+        }
+        order.setStatus(ORDER_STATUS_CANCELED);
+        boolean updated = updateById(order);
+        if (!updated) {
+            throw new BizException(ErrorCode.BIZ_ERROR, "取消订单失败");
+        }
+        return Result.ok(toOrderState(order, "订单已取消"));
+    }
+
+    @Override
+    @Transactional
+    public Result requestRefund(Long orderId) {
+        VoucherOrder order = requireOrder(orderId);
+        Long userId = UserHolder.getUser().getId();
+        if (!userId.equals(order.getUserId())) {
+            throw new BizException(ErrorCode.FORBIDDEN, "无权操作该订单");
+        }
+        if (order.getStatus() == null || order.getStatus() != ORDER_STATUS_PAID) {
+            throw new BizException(ErrorCode.BIZ_ERROR, "仅已支付订单可申请退款");
+        }
+        order.setStatus(ORDER_STATUS_REFUNDING);
+        boolean updated = updateById(order);
+        if (!updated) {
+            throw new BizException(ErrorCode.BIZ_ERROR, "申请退款失败");
+        }
+        return Result.ok(toOrderState(order, "退款申请已提交"));
+    }
+
+    @Override
+    @Transactional
+    public Result approveRefund(Long orderId) {
+        VoucherOrder order = requireOrder(orderId);
+        if (order.getStatus() == null || order.getStatus() != ORDER_STATUS_REFUNDING) {
+            throw new BizException(ErrorCode.BIZ_ERROR, "仅退款中订单可通过退款");
+        }
+        order.setStatus(ORDER_STATUS_REFUNDED);
+        order.setRefundTime(LocalDateTime.now());
+        boolean updated = updateById(order);
+        if (!updated) {
+            throw new BizException(ErrorCode.BIZ_ERROR, "退款审核失败");
+        }
+        return Result.ok(toOrderState(order, "退款已通过"));
+    }
+
+    @Override
+    @Transactional
+    public Result rejectRefund(Long orderId) {
+        VoucherOrder order = requireOrder(orderId);
+        if (order.getStatus() == null || order.getStatus() != ORDER_STATUS_REFUNDING) {
+            throw new BizException(ErrorCode.BIZ_ERROR, "仅退款中订单可拒绝退款");
+        }
+        order.setStatus(ORDER_STATUS_PAID);
+        boolean updated = updateById(order);
+        if (!updated) {
+            throw new BizException(ErrorCode.BIZ_ERROR, "退款审核失败");
+        }
+        return Result.ok(toOrderState(order, "退款已拒绝"));
+    }
+
+    @Override
+    @Transactional
+    public Result cancelExpiredUnpaidOrders() {
+        LocalDateTime deadline = LocalDateTime.now().minusMinutes(ORDER_PAY_TIMEOUT_MINUTES);
+        List<VoucherOrder> orders = list(query()
+                .eq("status", ORDER_STATUS_UNPAID)
+                .lt("create_time", deadline)
+                .getWrapper());
+        for (VoucherOrder order : orders) {
+            order.setStatus(ORDER_STATUS_CANCELED);
+        }
+        boolean updated = orders.isEmpty() || updateBatchById(orders);
+        if (!updated) {
+            throw new BizException(ErrorCode.BIZ_ERROR, "超时订单取消失败");
+        }
+        Map<String, Object> data = new HashMap<>(2);
+        data.put("canceled", orders.size());
+        data.put("timeoutMinutes", ORDER_PAY_TIMEOUT_MINUTES);
+        return Result.ok(data);
     }
 
     private VoucherOrder requireOrder(Long orderId) {

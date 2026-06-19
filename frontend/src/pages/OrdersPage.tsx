@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getMyVoucherOrders, payVoucherOrder } from '../services/modules/voucher'
+import { cancelVoucherOrder, getMyVoucherOrders, payVoucherOrder, requestVoucherRefund } from '../services/modules/voucher'
 import { formatCentPrice, formatDateTime } from '../utils/format'
 
 const statusClass = (status?: number) => {
@@ -26,6 +26,12 @@ export function OrdersPage() {
   const payMutation = useMutation({
     mutationFn: (orderId: number) => payVoucherOrder(orderId),
   })
+  const cancelMutation = useMutation({
+    mutationFn: (orderId: number) => cancelVoucherOrder(orderId),
+  })
+  const refundMutation = useMutation({
+    mutationFn: (orderId: number) => requestVoucherRefund(orderId),
+  })
 
   const handlePay = async (orderId: number) => {
     setTip('')
@@ -37,6 +43,30 @@ export function OrdersPage() {
       setTip((e as Error).message || '支付失败，请稍后重试')
     }
   }
+
+  const handleCancel = async (orderId: number) => {
+    setTip('')
+    try {
+      const result = await cancelMutation.mutateAsync(orderId)
+      setTip(result.message || '订单已取消')
+      await refetch()
+    } catch (e) {
+      setTip((e as Error).message || '取消失败，请稍后重试')
+    }
+  }
+
+  const handleRefund = async (orderId: number) => {
+    setTip('')
+    try {
+      const result = await refundMutation.mutateAsync(orderId)
+      setTip(result.message || '退款申请已提交')
+      await refetch()
+    } catch (e) {
+      setTip((e as Error).message || '退款申请失败，请稍后重试')
+    }
+  }
+
+  const actionPending = payMutation.isPending || cancelMutation.isPending || refundMutation.isPending
 
   return (
     <div className="page fade-in">
@@ -88,11 +118,21 @@ export function OrdersPage() {
               </div>
               <div className="order-actions">
                 {order.status === 1 ? (
-                  <button className="primary-btn" onClick={() => handlePay(order.id)} disabled={payMutation.isPending}>
+                  <button className="primary-btn" onClick={() => handlePay(order.id)} disabled={actionPending}>
                     {payMutation.isPending ? '支付中...' : '模拟支付'}
                   </button>
                 ) : null}
+                {order.status === 1 ? (
+                  <button className="ghost-btn" onClick={() => handleCancel(order.id)} disabled={actionPending}>
+                    取消订单
+                  </button>
+                ) : null}
                 {order.status === 2 ? <span className="redeem-code">核销码：{order.id}</span> : null}
+                {order.status === 2 ? (
+                  <button className="ghost-btn" onClick={() => handleRefund(order.id)} disabled={actionPending}>
+                    申请退款
+                  </button>
+                ) : null}
                 {order.status === 3 ? <span className="status-pill ok">已完成核销</span> : null}
               </div>
             </article>
