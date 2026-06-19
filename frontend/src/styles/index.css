@@ -748,3 +748,61 @@ select {
     grid-template-columns: 1fr;
   }
 }
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border-radius: 999px;
+  background: #e8f6f6;
+  color: #0b6762;
+  padding: 5px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.status-pill.ok {
+  background: #e9f8ef;
+  color: #247244;
+}
+
+.status-pill.warn {
+  background: #fff4dc;
+  color: #9a6500;
+}
+
+.status-pill.muted-pill {
+  background: #eef1f1;
+  color: #6d7f7d;
+}
+
+.empty-state {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  padding: 18px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-md);
+  background: #fbfefe;
+}
+
+.order-list {
+  display: grid;
+  gap: 12px;
+}
+
+.order-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-soft);
+}
+
+.order-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}

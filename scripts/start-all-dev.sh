@@ -26,9 +26,9 @@ start_service() {
   echo "Starting ${name}, log: ${log_file}"
   (
     cd "${ROOT_DIR}"
-    exec "${script}"
-  ) >"${log_file}" 2>&1 &
-  echo "$!" >"${pid_file}"
+    nohup "${script}" >"${log_file}" 2>&1 </dev/null &
+    echo "$!" >"${pid_file}"
+  )
 }
 
 start_service "backend" "${ROOT_DIR}/scripts/start-backend-dev.sh"

@@ -19,5 +19,5 @@ RABBITMQ_USER="${RABBITMQ_USER:-guest}"
 RABBITMQ_PASSWORD="${RABBITMQ_PASSWORD:-guest}"
 RABBITMQ_VHOST="${RABBITMQ_VHOST:-/}"
 
-mvn -DskipTests spring-boot:run \
+exec mvn -DskipTests spring-boot:run \
   -Dspring-boot.run.arguments="--spring.datasource.username=${DB_USER} --spring.datasource.password=${DB_PASSWORD} --spring.redis.host=${REDIS_HOST} --spring.rabbitmq.host=${RABBITMQ_HOST} --spring.rabbitmq.port=${RABBITMQ_PORT} --spring.rabbitmq.username=${RABBITMQ_USER} --spring.rabbitmq.password=${RABBITMQ_PASSWORD} --spring.rabbitmq.virtual-host=${RABBITMQ_VHOST}"

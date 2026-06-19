@@ -4,6 +4,7 @@ import { HomePage } from '../pages/HomePage'
 import { LoginPage } from '../pages/LoginPage'
 import { ShopDetailPage } from '../pages/ShopDetailPage'
 import { BlogDetailPage } from '../pages/BlogDetailPage'
+import { OrdersPage } from '../pages/OrdersPage'
 import { ShopListPage } from '../pages/ShopListPage'
 import { AdminLayout } from '../pages/admin/AdminLayout'
 import { AdminUsersPage } from '../pages/admin/AdminUsersPage'
@@ -37,6 +38,10 @@ export const router = createBrowserRouter([
       {
         path: 'blog/:id',
         element: <BlogDetailPage />,
+      },
+      {
+        path: 'orders',
+        element: <OrdersPage />,
       },
       {
         path: 'admin',

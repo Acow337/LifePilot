@@ -114,6 +114,24 @@ export interface SeckillOrderResult {
   message?: string
 }
 
+export interface VoucherOrder {
+  id: number
+  voucherId: number
+  voucherTitle?: string
+  voucherType?: number
+  shopId?: number
+  shopName?: string
+  payValue?: number
+  actualValue?: number
+  payType?: number
+  status?: number
+  statusText?: string
+  createTime?: string
+  payTime?: string
+  useTime?: string
+  refundTime?: string
+}
+
 export interface SeckillDlqMessage {
   deliveryTag?: number
   routingKey?: string

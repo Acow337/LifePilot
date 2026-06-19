@@ -3,8 +3,8 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { FallbackImage } from '../components/FallbackImage'
 import { getShopDetail } from '../services/modules/shop'
-import { getVoucherList, querySeckillOrderStatus, seckillVoucher } from '../services/modules/voucher'
-import { formatPrice, formatScore, pickFirstImage } from '../utils/format'
+import { buyVoucher, getVoucherList, querySeckillOrderStatus, seckillVoucher } from '../services/modules/voucher'
+import { formatCentPrice, formatPrice, formatScore, pickFirstImage } from '../utils/format'
 
 export function ShopDetailPage() {
   const { id } = useParams()
@@ -26,6 +26,10 @@ export function ShopDetailPage() {
 
   const seckillMutation = useMutation({
     mutationFn: (voucherId: number) => seckillVoucher(voucherId),
+  })
+
+  const buyMutation = useMutation({
+    mutationFn: (voucherId: number) => buyVoucher(voucherId),
   })
 
   const pollSeckillStatus = async (orderId: number) => {
@@ -58,6 +62,19 @@ export function ShopDetailPage() {
       await pollSeckillStatus(result.orderId)
     } catch (e) {
       setSeckillTip((e as Error).message || '抢购失败，请稍后重试')
+    } finally {
+      setProcessingVoucherId(null)
+    }
+  }
+
+  const handleBuy = async (voucherId: number) => {
+    setProcessingVoucherId(voucherId)
+    setSeckillTip('')
+    try {
+      const result = await buyMutation.mutateAsync(voucherId)
+      setSeckillTip(result.message || `购买成功，订单号：${result.orderId}`)
+    } catch (e) {
+      setSeckillTip((e as Error).message || '购买失败，请稍后重试')
     } finally {
       setProcessingVoucherId(null)
     }
@@ -115,16 +132,19 @@ export function ShopDetailPage() {
                 <h3>{voucher.title}</h3>
                 <p className="muted">{voucher.subTitle || voucher.rules || '限时优惠'}</p>
                 <div className="meta">
-                  <span>到手 {formatPrice(voucher.actualValue)}</span>
-                  <span>支付 {formatPrice(voucher.payValue)}</span>
+                  <span>抵扣 {formatCentPrice(voucher.actualValue)}</span>
+                  <span>支付 {formatCentPrice(voucher.payValue)}</span>
                 </div>
-                <button
-                  className="primary-btn"
-                  onClick={() => handleSeckill(voucher.id)}
-                  disabled={processingVoucherId === voucher.id}
-                >
-                  {processingVoucherId === voucher.id ? '处理中...' : '立即抢购'}
-                </button>
+                <div className="op-row">
+                  <button
+                    className="primary-btn"
+                    onClick={() => (voucher.type === 1 ? handleSeckill(voucher.id) : handleBuy(voucher.id))}
+                    disabled={processingVoucherId === voucher.id}
+                  >
+                    {processingVoucherId === voucher.id ? '处理中...' : voucher.type === 1 ? '立即抢购' : '立即购买'}
+                  </button>
+                  {voucher.type === 1 ? <span className="status-pill warn">秒杀券</span> : <span className="status-pill">普通券</span>}
+                </div>
               </div>
             </article>
           ))}

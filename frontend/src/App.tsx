@@ -27,6 +27,7 @@ function App() {
         <nav className="nav">
           <Link to="/">首页</Link>
           <Link to="/shops">店铺</Link>
+          {token ? <Link to="/orders">我的订单</Link> : null}
           {user?.role === 1 ? <Link to="/admin">后台</Link> : null}
         </nav>
         <div className="actions">

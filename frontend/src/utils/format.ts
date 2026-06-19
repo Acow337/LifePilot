@@ -23,6 +23,14 @@ export const formatPrice = (price?: number) => {
   return `¥${price}`
 }
 
+export const formatCentPrice = (price?: number) => {
+  if (price === undefined || price === null) {
+    return '—'
+  }
+  const yuan = price / 100
+  return `¥${Number.isInteger(yuan) ? yuan.toFixed(0) : yuan.toFixed(2)}`
+}
+
 export const formatScore = (score?: number) => {
   if (score === undefined || score === null) {
     return '—'

@@ -5,12 +5,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.util.concurrent.RateLimiter;
 import com.hmdp.dto.Result;
 import com.hmdp.entity.SeckillVoucher;
+import com.hmdp.entity.Shop;
+import com.hmdp.entity.Voucher;
 import com.hmdp.entity.VoucherOrder;
 import com.hmdp.enums.ErrorCode;
 import com.hmdp.exception.BizException;
 import com.hmdp.mapper.VoucherOrderMapper;
 import com.hmdp.rebbitmq.MQSender;
 import com.hmdp.service.ISeckillVoucherService;
+import com.hmdp.service.IShopService;
+import com.hmdp.service.IVoucherService;
 import com.hmdp.service.IVoucherOrderService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.utils.RedisIdWorker;
@@ -29,7 +33,9 @@ import javax.annotation.Resource;
 import java.time.ZoneId;
 import java.time.LocalDateTime;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -65,6 +71,12 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 
     @Resource
     private ISeckillVoucherService seckillVoucherService;
+
+    @Resource
+    private IVoucherService voucherService;
+
+    @Resource
+    private IShopService shopService;
 
     //lua脚本
     private static final DefaultRedisScript<Long> SECKILL_SCRIPT;
@@ -234,6 +246,109 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
             return Result.ok(data);
         }
         throw new BizException(ErrorCode.NOT_FOUND, "订单不存在或已超出查询时效");
+    }
+
+    @Override
+    @Transactional
+    public Result createVoucherOrder(Long voucherId) {
+        if (voucherId == null) {
+            throw new BizException(ErrorCode.BAD_REQUEST, "优惠券不能为空");
+        }
+        Long userId = UserHolder.getUser().getId();
+        Voucher voucher = voucherService.getById(voucherId);
+        if (voucher == null) {
+            throw new BizException(ErrorCode.NOT_FOUND, "优惠券不存在");
+        }
+        if (voucher.getStatus() == null || voucher.getStatus() != 1) {
+            throw new BizException(ErrorCode.BIZ_ERROR, "优惠券已下架");
+        }
+        if (voucher.getType() != null && voucher.getType() == 1) {
+            throw new BizException(ErrorCode.BAD_REQUEST, "秒杀券请使用抢购入口");
+        }
+        int count = count(query().eq("voucher_id", voucherId).eq("user_id", userId).getWrapper());
+        if (count > 0) {
+            throw new BizException(ErrorCode.BIZ_ERROR, "你已经购买过该优惠券");
+        }
+
+        VoucherOrder voucherOrder = new VoucherOrder();
+        long orderId = redisIdWorker.nextId("order");
+        voucherOrder.setId(orderId);
+        voucherOrder.setUserId(userId);
+        voucherOrder.setVoucherId(voucherId);
+        voucherOrder.setPayType(1);
+        voucherOrder.setStatus(2);
+        voucherOrder.setPayTime(LocalDateTime.now());
+        boolean saved = save(voucherOrder);
+        if (!saved) {
+            throw new BizException(ErrorCode.BIZ_ERROR, "创建订单失败");
+        }
+
+        Map<String, Object> data = new HashMap<>(4);
+        data.put("orderId", orderId);
+        data.put("state", "SUCCESS");
+        data.put("status", voucherOrder.getStatus());
+        data.put("message", "购买成功");
+        return Result.ok(data);
+    }
+
+    @Override
+    public Result queryMyOrders() {
+        Long userId = UserHolder.getUser().getId();
+        List<VoucherOrder> orders = list(query().eq("user_id", userId).orderByDesc("create_time").getWrapper());
+        List<Map<String, Object>> rows = new ArrayList<>(orders.size());
+        for (VoucherOrder order : orders) {
+            rows.add(toOrderRow(order));
+        }
+        return Result.ok(rows, (long) rows.size());
+    }
+
+    private Map<String, Object> toOrderRow(VoucherOrder order) {
+        Map<String, Object> row = new HashMap<>(16);
+        row.put("id", order.getId());
+        row.put("voucherId", order.getVoucherId());
+        row.put("status", order.getStatus());
+        row.put("statusText", toOrderStatusText(order.getStatus()));
+        row.put("payType", order.getPayType());
+        row.put("createTime", order.getCreateTime());
+        row.put("payTime", order.getPayTime());
+        row.put("useTime", order.getUseTime());
+        row.put("refundTime", order.getRefundTime());
+
+        Voucher voucher = voucherService.getById(order.getVoucherId());
+        if (voucher != null) {
+            row.put("voucherTitle", voucher.getTitle());
+            row.put("voucherType", voucher.getType());
+            row.put("payValue", voucher.getPayValue());
+            row.put("actualValue", voucher.getActualValue());
+            row.put("shopId", voucher.getShopId());
+            Shop shop = shopService.getById(voucher.getShopId());
+            if (shop != null) {
+                row.put("shopName", shop.getName());
+            }
+        }
+        return row;
+    }
+
+    private String toOrderStatusText(Integer status) {
+        if (status == null) {
+            return "未知";
+        }
+        switch (status) {
+            case 1:
+                return "未支付";
+            case 2:
+                return "已支付";
+            case 3:
+                return "已核销";
+            case 4:
+                return "已取消";
+            case 5:
+                return "退款中";
+            case 6:
+                return "已退款";
+            default:
+                return "未知";
+        }
     }
 
 
