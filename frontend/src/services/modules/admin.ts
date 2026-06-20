@@ -1,5 +1,6 @@
 import { apiGet, apiGetWithMeta, apiPatch, apiPost, apiPut } from '../http'
 import type {
+  AdminDashboardData,
   AdminLog,
   SeckillDlqReplayPreviewResult,
   AdminUser,
@@ -92,6 +93,8 @@ export interface AdminLogQuery extends PageParams {
 }
 
 export const getAdminLogs = (params: AdminLogQuery) => apiGetWithMeta<AdminLog[]>('/admin/logs', { params })
+
+export const getAdminDashboard = () => apiGet<AdminDashboardData>('/admin/dashboard')
 
 export const getAdminSeckillDlq = (limit = 20, voucherId?: number) =>
   apiGet<SeckillDlqSnapshot>('/admin/seckill/dlq', {

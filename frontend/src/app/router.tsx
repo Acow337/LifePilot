@@ -15,6 +15,7 @@ import { AdminLogsPage } from '../pages/admin/AdminLogsPage'
 import { AdminRedeemPage } from '../pages/admin/AdminRedeemPage'
 import { AdminRefundsPage } from '../pages/admin/AdminRefundsPage'
 import { AdminSeckillDlqPage } from '../pages/admin/AdminSeckillDlqPage'
+import { AdminDashboardPage } from '../pages/admin/AdminDashboardPage'
 
 export const router = createBrowserRouter([
   {
@@ -51,7 +52,11 @@ export const router = createBrowserRouter([
         children: [
           {
             index: true,
-            element: <Navigate to="users" replace />,
+            element: <Navigate to="dashboard" replace />,
+          },
+          {
+            path: 'dashboard',
+            element: <AdminDashboardPage />,
           },
           {
             path: 'users',

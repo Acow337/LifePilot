@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.util.concurrent.RateLimiter;
 import com.hmdp.dto.Result;
+import com.hmdp.entity.AdminLog;
 import com.hmdp.entity.SeckillVoucher;
 import com.hmdp.entity.Shop;
 import com.hmdp.entity.Voucher;
@@ -12,6 +13,7 @@ import com.hmdp.enums.ErrorCode;
 import com.hmdp.exception.BizException;
 import com.hmdp.mapper.VoucherOrderMapper;
 import com.hmdp.rebbitmq.MQSender;
+import com.hmdp.service.IAdminLogService;
 import com.hmdp.service.ISeckillVoucherService;
 import com.hmdp.service.IShopService;
 import com.hmdp.service.IVoucherService;
@@ -85,6 +87,9 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 
     @Resource
     private IShopService shopService;
+
+    @Resource
+    private IAdminLogService adminLogService;
 
     //lua脚本
     private static final DefaultRedisScript<Long> SECKILL_SCRIPT;
@@ -320,12 +325,14 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         if (order.getStatus() == null || order.getStatus() != ORDER_STATUS_UNPAID) {
             throw new BizException(ErrorCode.BIZ_ERROR, "当前订单状态不可支付");
         }
+        Integer oldStatus = order.getStatus();
         order.setStatus(ORDER_STATUS_PAID);
         order.setPayTime(LocalDateTime.now());
         boolean updated = updateById(order);
         if (!updated) {
             throw new BizException(ErrorCode.BIZ_ERROR, "支付失败，请重试");
         }
+        recordOrderLog(order, "pay", oldStatus, order.getStatus(), "用户模拟支付");
         return Result.ok(toOrderState(order, "支付成功"));
     }
 
@@ -336,12 +343,14 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         if (order.getStatus() == null || order.getStatus() != ORDER_STATUS_PAID) {
             throw new BizException(ErrorCode.BIZ_ERROR, "仅已支付订单可核销");
         }
+        Integer oldStatus = order.getStatus();
         order.setStatus(ORDER_STATUS_USED);
         order.setUseTime(LocalDateTime.now());
         boolean updated = updateById(order);
         if (!updated) {
             throw new BizException(ErrorCode.BIZ_ERROR, "核销失败，请重试");
         }
+        recordOrderLog(order, "redeem", oldStatus, order.getStatus(), "管理员核销订单");
         return Result.ok(toOrderState(order, "核销成功"));
     }
 
@@ -356,11 +365,13 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         if (order.getStatus() == null || order.getStatus() != ORDER_STATUS_UNPAID) {
             throw new BizException(ErrorCode.BIZ_ERROR, "仅未支付订单可取消");
         }
+        Integer oldStatus = order.getStatus();
         order.setStatus(ORDER_STATUS_CANCELED);
         boolean updated = updateById(order);
         if (!updated) {
             throw new BizException(ErrorCode.BIZ_ERROR, "取消订单失败");
         }
+        recordOrderLog(order, "cancel", oldStatus, order.getStatus(), "用户取消未支付订单");
         return Result.ok(toOrderState(order, "订单已取消"));
     }
 
@@ -375,11 +386,13 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         if (order.getStatus() == null || order.getStatus() != ORDER_STATUS_PAID) {
             throw new BizException(ErrorCode.BIZ_ERROR, "仅已支付订单可申请退款");
         }
+        Integer oldStatus = order.getStatus();
         order.setStatus(ORDER_STATUS_REFUNDING);
         boolean updated = updateById(order);
         if (!updated) {
             throw new BizException(ErrorCode.BIZ_ERROR, "申请退款失败");
         }
+        recordOrderLog(order, "request_refund", oldStatus, order.getStatus(), "用户申请退款");
         return Result.ok(toOrderState(order, "退款申请已提交"));
     }
 
@@ -390,12 +403,14 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         if (order.getStatus() == null || order.getStatus() != ORDER_STATUS_REFUNDING) {
             throw new BizException(ErrorCode.BIZ_ERROR, "仅退款中订单可通过退款");
         }
+        Integer oldStatus = order.getStatus();
         order.setStatus(ORDER_STATUS_REFUNDED);
         order.setRefundTime(LocalDateTime.now());
         boolean updated = updateById(order);
         if (!updated) {
             throw new BizException(ErrorCode.BIZ_ERROR, "退款审核失败");
         }
+        recordOrderLog(order, "approve_refund", oldStatus, order.getStatus(), "管理员通过退款");
         return Result.ok(toOrderState(order, "退款已通过"));
     }
 
@@ -406,11 +421,13 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         if (order.getStatus() == null || order.getStatus() != ORDER_STATUS_REFUNDING) {
             throw new BizException(ErrorCode.BIZ_ERROR, "仅退款中订单可拒绝退款");
         }
+        Integer oldStatus = order.getStatus();
         order.setStatus(ORDER_STATUS_PAID);
         boolean updated = updateById(order);
         if (!updated) {
             throw new BizException(ErrorCode.BIZ_ERROR, "退款审核失败");
         }
+        recordOrderLog(order, "reject_refund", oldStatus, order.getStatus(), "管理员拒绝退款");
         return Result.ok(toOrderState(order, "退款已拒绝"));
     }
 
@@ -428,6 +445,9 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         boolean updated = orders.isEmpty() || updateBatchById(orders);
         if (!updated) {
             throw new BizException(ErrorCode.BIZ_ERROR, "超时订单取消失败");
+        }
+        for (VoucherOrder order : orders) {
+            recordOrderLog(order, "timeout_cancel", ORDER_STATUS_UNPAID, order.getStatus(), "系统自动取消超时未支付订单");
         }
         Map<String, Object> data = new HashMap<>(2);
         data.put("canceled", orders.size());
@@ -453,6 +473,44 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         data.put("statusText", toOrderStatusText(order.getStatus()));
         data.put("message", message);
         return data;
+    }
+
+    private void recordOrderLog(VoucherOrder order, String action, Integer oldStatus, Integer newStatus, String message) {
+        if (adminLogService == null || order == null) {
+            return;
+        }
+        Map<String, Object> detail = new HashMap<>(8);
+        detail.put("orderId", order.getId());
+        detail.put("userId", order.getUserId());
+        detail.put("voucherId", order.getVoucherId());
+        detail.put("oldStatus", oldStatus);
+        detail.put("oldStatusText", toOrderStatusText(oldStatus));
+        detail.put("newStatus", newStatus);
+        detail.put("newStatusText", toOrderStatusText(newStatus));
+        detail.put("message", message);
+        AdminLog adminLog = new AdminLog()
+                .setOperatorId(order.getUserId() == null ? 0L : order.getUserId())
+                .setModule("order")
+                .setAction(action)
+                .setTargetType("voucher_order")
+                .setTargetId(order.getId() == null ? 0L : order.getId())
+                .setDetail(toJson(detail))
+                .setCreateTime(LocalDateTime.now());
+        try {
+            adminLogService.save(adminLog);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private String toJson(Map<String, Object> detail) {
+        if (objectMapper == null) {
+            return detail.toString();
+        }
+        try {
+            return objectMapper.writeValueAsString(detail);
+        } catch (JsonProcessingException e) {
+            return detail.toString();
+        }
     }
 
     private Map<String, Object> toOrderRow(VoucherOrder order) {

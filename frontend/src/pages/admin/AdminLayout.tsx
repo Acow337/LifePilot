@@ -4,6 +4,7 @@ import { getMe } from '../../services/modules/auth'
 import { useAuthStore } from '../../store/auth'
 
 const menus = [
+  { to: '/admin/dashboard', label: '数据看板' },
   { to: '/admin/users', label: '用户管理' },
   { to: '/admin/blogs', label: '笔记审核' },
   { to: '/admin/shops', label: '店铺管理' },

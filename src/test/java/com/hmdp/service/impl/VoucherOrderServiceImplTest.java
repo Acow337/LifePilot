@@ -2,10 +2,12 @@ package com.hmdp.service.impl;
 
 import com.hmdp.dto.Result;
 import com.hmdp.dto.UserDTO;
+import com.hmdp.entity.AdminLog;
 import com.hmdp.entity.Shop;
 import com.hmdp.entity.Voucher;
 import com.hmdp.entity.VoucherOrder;
 import com.hmdp.exception.BizException;
+import com.hmdp.service.IAdminLogService;
 import com.hmdp.utils.RedisIdWorker;
 import com.hmdp.utils.UserHolder;
 import org.junit.jupiter.api.AfterEach;
@@ -31,6 +33,7 @@ class VoucherOrderServiceImplTest {
     private VoucherServiceImpl voucherService;
     private ShopServiceImpl shopService;
     private RedisIdWorker redisIdWorker;
+    private IAdminLogService adminLogService;
     private VoucherOrderServiceImpl orderService;
 
     @BeforeEach
@@ -38,10 +41,12 @@ class VoucherOrderServiceImplTest {
         voucherService = mock(VoucherServiceImpl.class);
         shopService = mock(ShopServiceImpl.class);
         redisIdWorker = mock(RedisIdWorker.class);
+        adminLogService = mock(IAdminLogService.class);
         orderService = org.mockito.Mockito.spy(new VoucherOrderServiceImpl());
         ReflectionTestUtils.setField(orderService, "voucherService", voucherService);
         ReflectionTestUtils.setField(orderService, "shopService", shopService);
         ReflectionTestUtils.setField(orderService, "redisIdWorker", redisIdWorker);
+        ReflectionTestUtils.setField(orderService, "adminLogService", adminLogService);
 
         UserDTO user = new UserDTO();
         user.setId(9002L);
@@ -143,6 +148,30 @@ class VoucherOrderServiceImplTest {
         ArgumentCaptor<VoucherOrder> captor = ArgumentCaptor.forClass(VoucherOrder.class);
         verify(orderService).updateById(captor.capture());
         assertEquals(2, captor.getValue().getStatus());
+    }
+
+    @Test
+    void payVoucherOrderWritesStateChangeLog() {
+        VoucherOrder order = new VoucherOrder();
+        order.setId(123456L);
+        order.setUserId(9002L);
+        order.setVoucherId(9001L);
+        order.setStatus(1);
+        org.mockito.Mockito.doReturn(order).when(orderService).getById(123456L);
+        org.mockito.Mockito.doReturn(true).when(orderService).updateById(any(VoucherOrder.class));
+
+        orderService.payVoucherOrder(123456L);
+
+        ArgumentCaptor<AdminLog> captor = ArgumentCaptor.forClass(AdminLog.class);
+        verify(adminLogService).save(captor.capture());
+        AdminLog log = captor.getValue();
+        assertEquals(9002L, log.getOperatorId());
+        assertEquals("order", log.getModule());
+        assertEquals("pay", log.getAction());
+        assertEquals("voucher_order", log.getTargetType());
+        assertEquals(123456L, log.getTargetId());
+        assertTrue(log.getDetail().contains("未支付"));
+        assertTrue(log.getDetail().contains("已支付"));
     }
 
     @Test

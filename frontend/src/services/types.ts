@@ -183,6 +183,44 @@ export interface AdminLog {
   createTime?: string
 }
 
+export interface AdminDashboardStatusItem {
+  status: number
+  label: string
+  count: number
+}
+
+export interface AdminDashboardRecentOrder {
+  id: number
+  userId: number
+  voucherId: number
+  voucherTitle?: string
+  payValue?: number
+  status?: number
+  statusText?: string
+  createTime?: string
+}
+
+export interface AdminDashboardData {
+  totalOrders: number
+  paidOrders: number
+  usedOrders: number
+  canceledOrders: number
+  refundingOrders: number
+  refundedOrders: number
+  todayOrders: number
+  gmv: number
+  refundRate: number
+  conversionRate: number
+  entities: {
+    users: number
+    shops: number
+    vouchers: number
+    blogs: number
+  }
+  statusDistribution: AdminDashboardStatusItem[]
+  recentOrders: AdminDashboardRecentOrder[]
+}
+
 export interface ChatBotRequest {
   session_id: string
   user_id: string
