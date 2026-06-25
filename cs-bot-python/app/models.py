@@ -26,6 +26,9 @@ class ChatResponse(BaseModel):
     used_tools: list[str] = Field(default_factory=list)
     suggestions: list[str] = Field(default_factory=list)
     cards: list["ChatCard"] = Field(default_factory=list)
+    intent: Optional[str] = None
+    trace_id: Optional[str] = None
+    error_code: Optional[str] = None
 
 
 class ChatCard(BaseModel):

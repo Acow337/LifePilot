@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import unittest
 from unittest.mock import patch
 
@@ -6,9 +7,12 @@ from pydantic import ValidationError
 
 from app.api_client import BackendBusinessError, BackendClient
 from app.config import get_settings
+from app.intent import Intent, detect_intent
 from app.knowledge_base import LocalKnowledgeBase
-from app.main import append_to_history, build_cards_from_steps, build_fallback_response
+from app.main import append_to_history, build_cards_from_steps, build_fallback_response, build_slot_follow_up_response, build_suggestions
 from app.models import ChatRequest, ChatResponse
+from app.tools import build_tools, classify_tool_error, make_tool_error
+from app.task_state import PendingTaskStore, SlotStatus, build_slot_status, extract_slots
 
 
 class BotStabilityTest(unittest.TestCase):
@@ -59,12 +63,132 @@ class BotStabilityTest(unittest.TestCase):
 
         self.assertEqual(response.suggestions, [])
 
-    def test_build_fallback_response_contains_demo_suggestions(self):
-        response = build_fallback_response("OPENAI_API_KEY 未配置")
+    def test_chat_response_serializes_agent_metadata(self):
+        response = ChatResponse(
+            answer="已帮你查询",
+            intent="order",
+            trace_id="trace-123",
+            error_code=None,
+        )
 
-        self.assertIn("智能客服暂时无法连接模型", response.answer)
+        payload = response.model_dump()
+
+        self.assertEqual(payload["intent"], "order")
+        self.assertEqual(payload["trace_id"], "trace-123")
+        self.assertIsNone(payload["error_code"])
+
+    def test_build_fallback_response_contains_demo_suggestions(self):
+        response = build_fallback_response("MODEL_NOT_CONFIGURED")
+
+        self.assertIn("智能客服模型还没有配置完成", response.answer)
         self.assertIn("查店铺优惠", response.suggestions)
         self.assertIn("秒杀订单状态", response.suggestions)
+
+    def test_build_fallback_response_sets_error_metadata(self):
+        response = build_fallback_response(
+            "MODEL_NOT_CONFIGURED",
+            intent="fallback",
+            trace_id="trace-abc",
+        )
+
+        self.assertEqual(response.error_code, "MODEL_NOT_CONFIGURED")
+        self.assertEqual(response.intent, "fallback")
+        self.assertEqual(response.trace_id, "trace-abc")
+        self.assertNotIn("sk-", response.answer)
+
+    def test_build_suggestions_handles_refund_intent(self):
+        suggestions = build_suggestions("我想取消订单并退款", [], intent="refund")
+
+        self.assertIn("秒杀订单状态", suggestions)
+        self.assertIn("转人工", suggestions)
+
+    def test_detect_intent_routes_common_messages(self):
+        examples = {
+            "这家店铺地址在哪里": Intent.SHOP,
+            "1号店铺有什么优惠券": Intent.VOUCHER,
+            "帮我查一下订单123的秒杀状态": Intent.ORDER,
+            "这个订单可以退款吗": Intent.REFUND,
+            "平台登录规则是什么": Intent.RULE,
+            "你好": Intent.FALLBACK,
+        }
+
+        for message, expected in examples.items():
+            with self.subTest(message=message):
+                self.assertEqual(detect_intent(message), expected)
+
+    def test_detect_intent_prioritizes_refund_over_order(self):
+        self.assertEqual(detect_intent("订单123怎么取消退款"), Intent.REFUND)
+
+    def test_build_tools_limits_tools_by_intent(self):
+        api_client = object()
+        kb = object()
+
+        tools = build_tools(api_client, kb, Intent.ORDER)
+        names = [tool.name for tool in tools]
+
+        self.assertEqual(names, ["query_seckill_order_status", "query_local_knowledge"])
+
+    def test_make_tool_error_returns_structured_json(self):
+        payload = json.loads(make_tool_error("BACKEND_TIMEOUT", "后端服务响应超时，请稍后重试"))
+
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["error_code"], "BACKEND_TIMEOUT")
+        self.assertEqual(payload["message"], "后端服务响应超时，请稍后重试")
+
+    def test_classify_tool_error_reads_structured_json(self):
+        output = make_tool_error("BACKEND_ERROR", "后端返回业务错误")
+
+        self.assertEqual(classify_tool_error(output), "BACKEND_ERROR")
+
+    def test_system_prompt_mentions_intent_constraints(self):
+        from app.chains import SYSTEM_PROMPT
+
+        self.assertIn("当前识别意图", SYSTEM_PROMPT)
+        self.assertIn("只能使用当前提供的工具", SYSTEM_PROMPT)
+        self.assertIn("退款", SYSTEM_PROMPT)
+
+    def test_extract_slots_reads_order_and_shop_ids(self):
+        self.assertEqual(extract_slots("帮我查订单123456状态").get("order_id"), "123456")
+        self.assertEqual(extract_slots("1号店铺有什么优惠券").get("shop_id"), "1")
+
+    def test_build_slot_status_requests_missing_order_id(self):
+        status = build_slot_status(Intent.ORDER, "帮我查订单状态")
+
+        self.assertEqual(status.intent, Intent.ORDER)
+        self.assertEqual(status.missing_slot, "order_id")
+        self.assertIn("订单号", status.follow_up)
+
+    def test_pending_task_store_resumes_when_user_provides_slot(self):
+        store = PendingTaskStore()
+        first = build_slot_status(Intent.ORDER, "帮我查订单状态")
+        store.save("session-1", first)
+
+        resumed = store.resume_if_possible("session-1", "123456")
+
+        self.assertIsNotNone(resumed)
+        self.assertEqual(resumed.intent, Intent.ORDER)
+        self.assertEqual(resumed.slots.get("order_id"), "123456")
+        self.assertIsNone(store.get("session-1"))
+
+    def test_pending_task_store_does_not_resume_explicit_different_intent(self):
+        store = PendingTaskStore()
+        first = build_slot_status(Intent.ORDER, "帮我查订单状态")
+        store.save("session-1", first)
+
+        resumed = store.resume_if_possible("session-1", "1号店铺有什么优惠券", current_intent=Intent.VOUCHER)
+
+        self.assertIsNone(resumed)
+        self.assertIsNone(store.get("session-1"))
+
+    def test_build_slot_follow_up_response_returns_traceable_question(self):
+        status = build_slot_status(Intent.VOUCHER, "帮我查优惠券")
+
+        response = build_slot_follow_up_response(status, trace_id="trace-slot")
+
+        self.assertEqual(response.intent, "voucher")
+        self.assertEqual(response.trace_id, "trace-slot")
+        self.assertEqual(response.error_code, "MISSING_SLOT")
+        self.assertIn("店铺ID", response.answer)
 
     def test_deepseek_settings_are_read_from_environment(self):
         with patch.dict(
