@@ -60,3 +60,7 @@ cs-bot-python/app/__pycache__/
 cs-bot-python/tests/__pycache__/
 cs-bot-python/.pytest_cache/
 cs-bot-python/**/*.pyc
+.aimate/marketplace/
+.aimate/settings.local.json
+.codex/config.toml
+.nano-cc/

@@ -25,6 +25,34 @@ class BotStabilityTest(unittest.TestCase):
             self.assertEqual(kb.rebuild(), 0)
             self.assertEqual(kb.search("优惠券规则"), [])
 
+    def test_knowledge_base_adds_section_metadata_and_scores(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            doc_path = Path(tmp_dir) / "faq.md"
+            doc_path.write_text("# 客服 FAQ\n\n## 秒杀订单状态\n\n秒杀失败通常因为库存不足。\n", encoding="utf-8")
+            kb = LocalKnowledgeBase(str(Path(tmp_dir) / "*.md"))
+
+            self.assertEqual(kb.rebuild(), 1)
+            results = kb.search_with_scores("秒杀失败原因")
+
+            self.assertEqual(results[0].document.metadata["title"], "客服 FAQ")
+            self.assertEqual(results[0].document.metadata["section"], "秒杀订单状态")
+            self.assertIn("faq.md#chunk1", results[0].document.metadata["chunk_id"])
+            self.assertGreater(results[0].confidence, 0)
+            self.assertIn("秒杀", results[0].matched_keywords)
+
+    def test_knowledge_base_filters_low_confidence_results(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            doc_path = Path(tmp_dir) / "faq.md"
+            doc_path.write_text("# 客服 FAQ\n\n## 图片上传\n\n图片支持 jpg 格式。\n", encoding="utf-8")
+            kb = LocalKnowledgeBase(str(Path(tmp_dir) / "*.md"))
+            kb.rebuild()
+
+            self.assertEqual(kb.search_with_scores("火星旅游攻略"), [])
+
     def test_chat_request_rejects_oversized_message(self):
         with self.assertRaises(ValidationError):
             ChatRequest(session_id="session-1", user_id="u1", message="太长" * 1000)
@@ -139,6 +167,32 @@ class BotStabilityTest(unittest.TestCase):
         output = make_tool_error("BACKEND_ERROR", "后端返回业务错误")
 
         self.assertEqual(classify_tool_error(output), "BACKEND_ERROR")
+
+    def test_query_local_knowledge_includes_citation_metadata(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            doc_path = Path(tmp_dir) / "faq.md"
+            doc_path.write_text("# 客服 FAQ\n\n## 秒杀订单状态\n\n秒杀失败通常因为库存不足。\n", encoding="utf-8")
+            kb = LocalKnowledgeBase(str(Path(tmp_dir) / "*.md"))
+            kb.rebuild()
+            tools = build_tools(object(), kb, Intent.RULE)
+
+            output = tools[0].invoke({"question": "秒杀失败原因"})
+
+            self.assertIn("chunk_id=faq.md#chunk1", output)
+            self.assertIn("section=秒杀订单状态", output)
+            self.assertIn("confidence=", output)
+            self.assertIn("matched=", output)
+
+    def test_eval_report_summary_formats_pass_rate(self):
+        from evals.run_agent_eval import format_report
+
+        report = format_report(total=4, failures=[])
+
+        self.assertIn("total=4", report)
+        self.assertIn("passed=4", report)
+        self.assertIn("pass_rate=100.00%", report)
 
     def test_system_prompt_mentions_intent_constraints(self):
         from app.chains import SYSTEM_PROMPT

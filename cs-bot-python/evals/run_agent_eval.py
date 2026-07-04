@@ -48,6 +48,19 @@ def evaluate_case(case: dict[str, Any]) -> list[str]:
     return errors
 
 
+def format_report(total: int, failures: list[str]) -> str:
+    failed = len(failures)
+    passed = total - failed
+    pass_rate = (passed / total * 100) if total else 0.0
+    lines = [
+        f"report total={total} passed={passed} failed={failed} pass_rate={pass_rate:.2f}%",
+    ]
+    if failures:
+        lines.append("failures:")
+        lines.extend(f"- {failure}" for failure in failures)
+    return "\n".join(lines)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run deterministic customer-service agent evals.")
     parser.add_argument("dataset", nargs="?", default=str(DEFAULT_DATASET))
@@ -63,11 +76,11 @@ def main() -> int:
 
     if failures:
         print(f"FAIL {len(failures)}/{len(cases)} cases")
-        for failure in failures:
-            print(f"- {failure}")
+        print(format_report(len(cases), failures))
         return 1
 
     print(f"PASS {len(cases)} cases")
+    print(format_report(len(cases), failures))
     return 0
 
 

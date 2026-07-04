@@ -79,15 +79,23 @@ def build_tools(api_client: BackendClient, kb: LocalKnowledgeBase, intent: Inten
     @tool
     def query_local_knowledge(question: str) -> str:
         """从本地知识库检索运营规则、文档说明。输入问题文本。"""
-        docs = kb.search(question)
-        if not docs:
+        results = kb.search_with_scores(question)
+        if not results:
             return make_tool_error("KNOWLEDGE_EMPTY", "知识库暂无相关内容")
 
         pieces: list[str] = []
-        for idx, doc in enumerate(docs, start=1):
+        for idx, result in enumerate(results, start=1):
+            doc = result.document
             source = doc.metadata.get("source", "unknown")
             chunk = doc.metadata.get("chunk", "?")
-            pieces.append(f"[{idx}] source={source}#chunk{chunk}\n{doc.page_content[:500]}")
+            chunk_id = doc.metadata.get("chunk_id") or f"{source}#chunk{chunk}"
+            section = doc.metadata.get("section", "")
+            matched = ",".join(result.matched_keywords)
+            pieces.append(
+                f"[{idx}] source={source}#chunk{chunk} chunk_id={chunk_id} "
+                f"section={section} confidence={result.confidence:.2f} matched={matched}\n"
+                f"{doc.page_content[:500]}"
+            )
         return "\n\n".join(pieces)
 
     tools = [query_shop_detail, query_shop_vouchers, query_seckill_order_status, query_local_knowledge]
