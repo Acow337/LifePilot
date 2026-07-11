@@ -1,6 +1,6 @@
-# AI Dianping
+# LifePilot
 
-AI Dianping 是一个面向本地生活场景的点评服务平台，基于原黑马点评项目扩展了前后端页面、优惠券订单履约、秒杀异步下单、后台运营管理和 LangChain 智能客服能力。项目适合作为 Java 后端、Redis 高并发、RabbitMQ 异步削峰和 AI Agent 工程化实践的综合 Demo。
+LifePilot 是一个面向本地生活场景的智能服务平台，融合点评业务、营销秒杀、订单履约和智能客服 Agent 能力。项目基于原黑马点评业务模型扩展了前后端页面、优惠券履约、秒杀异步下单、后台运营管理和 LangChain 智能客服，适合作为 Java 后端、Redis 高并发、RabbitMQ 异步削峰和 AI Agent 工程化实践的综合 Demo。
 
 ## 功能概览
 

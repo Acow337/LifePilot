@@ -10,9 +10,9 @@
     </parent>
 
     <groupId>com.hmdp</groupId>
-    <artifactId>hm-dianping</artifactId>
+    <artifactId>lifepilot</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>hm-dianping</name>
+    <name>lifepilot</name>
     <description>Demo project for Spring Boot</description>
     <properties>
         <java.version>11</java.version>
