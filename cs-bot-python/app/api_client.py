@@ -28,6 +28,12 @@ class BackendClient:
             resp.raise_for_status()
             return self._unwrap_result(resp.json())
 
+    def _post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+        with httpx.Client(timeout=self.timeout_seconds, headers=self._headers()) as client:
+            resp = client.post(f"{self.base_url}{path}", json=payload)
+            resp.raise_for_status()
+            return self._unwrap_result(resp.json())
+
     @staticmethod
     def _unwrap_result(payload: dict[str, Any]) -> dict[str, Any]:
         if "success" not in payload:
@@ -49,3 +55,15 @@ class BackendClient:
 
     def get_seckill_order_status(self, order_id: int) -> dict[str, Any]:
         return self._get(f"/voucher-order/status/{order_id}")
+
+    def get_agent_order(self, order_id: int) -> dict[str, Any]:
+        return self._get(f"/agent/tools/order/{order_id}")
+
+    def get_agent_campaign(self, campaign_id: int) -> dict[str, Any]:
+        return self._get(f"/agent/tools/campaign/{campaign_id}")
+
+    def get_refund_policy(self) -> dict[str, Any]:
+        return self._get("/agent/tools/refund-policy")
+
+    def record_agent_trace(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._post("/agent/traces", payload)

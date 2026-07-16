@@ -17,8 +17,8 @@ export function AdminDashboardPage() {
       <section className="dashboard-hero">
         <div>
           <p className="kicker">Operations Radar</p>
-          <h2>运营数据看板</h2>
-          <p className="muted">汇总订单转化、退款风险和平台核心资源，方便演示运营后台闭环。</p>
+          <h2>智能运营驾驶舱</h2>
+          <p className="muted">汇总营销活动、订单履约、库存账本和 AI 客服表现，支撑活动复盘与异常治理。</p>
         </div>
         <div className="dashboard-hero-badge">
           <span>今日订单</span>
@@ -48,9 +48,26 @@ export function AdminDashboardPage() {
               <small>{data.refundingOrders} 笔退款中，{data.refundedOrders} 笔已退款</small>
             </div>
             <div className="metric-card">
-              <span>平台资源</span>
-              <strong>{data.entities.shops}</strong>
-              <small>{data.entities.users} 用户 / {data.entities.vouchers} 券 / {data.entities.blogs} 笔记</small>
+              <span>活动中心</span>
+              <strong>{data.opsMetrics?.activeCampaigns ?? data.entities.campaigns ?? 0}</strong>
+              <small>{data.entities.vouchers} 券 / {data.opsMetrics?.inventoryEvents ?? 0} 条库存流水</small>
+            </div>
+            <div className="metric-card">
+              <span>AI 客服</span>
+              <strong>{data.opsMetrics?.agentTurns ?? data.entities.agentTraces ?? 0}</strong>
+              <small>失败率 {percentText(data.opsMetrics?.agentFailureRate)} / 异常单 {data.opsMetrics?.abnormalOrders ?? 0}</small>
+            </div>
+          </section>
+
+          <section className="section dashboard-card">
+            <div className="section-head">
+              <h3>运营 Copilot 洞察</h3>
+              <span className="muted">基于当前订单、活动和 Agent Trace 生成</span>
+            </div>
+            <div className="insight-list">
+              {(data.copilotInsights ?? []).map((insight) => (
+                <p key={insight}>✦ {insight}</p>
+              ))}
             </div>
           </section>
 

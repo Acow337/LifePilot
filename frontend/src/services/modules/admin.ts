@@ -1,7 +1,10 @@
 import { apiGet, apiGetWithMeta, apiPatch, apiPost, apiPut } from '../http'
 import type {
   AdminDashboardData,
+  AgentTrace,
+  Campaign,
   AdminLog,
+  InventoryLedger,
   SeckillDlqReplayPreviewResult,
   AdminUser,
   Blog,
@@ -95,6 +98,38 @@ export interface AdminLogQuery extends PageParams {
 export const getAdminLogs = (params: AdminLogQuery) => apiGetWithMeta<AdminLog[]>('/admin/logs', { params })
 
 export const getAdminDashboard = () => apiGet<AdminDashboardData>('/admin/dashboard')
+
+export interface AdminCampaignQuery extends PageParams {
+  keyword?: string
+  status?: number
+  type?: string
+  shopId?: number
+}
+
+export const getAdminCampaigns = (params: AdminCampaignQuery) =>
+  apiGetWithMeta<Campaign[]>('/admin/campaigns', { params })
+
+export const updateAdminCampaignStatus = (id: number, status: number) =>
+  apiPatch<void>(`/admin/campaigns/${id}/status`, { status })
+
+export interface InventoryLedgerQuery extends PageParams {
+  campaignId?: number
+  voucherId?: number
+  orderId?: number
+  changeType?: string
+}
+
+export const getInventoryLedgers = (params: InventoryLedgerQuery) =>
+  apiGetWithMeta<InventoryLedger[]>('/admin/fulfillment/inventory-ledgers', { params })
+
+export interface AgentTraceQuery extends PageParams {
+  sessionId?: string
+  intent?: string
+  errorCode?: string
+}
+
+export const getAgentTraces = (params: AgentTraceQuery) =>
+  apiGetWithMeta<AgentTrace[]>('/admin/agent/traces', { params })
 
 export const getAdminSeckillDlq = (limit = 20, voucherId?: number) =>
   apiGet<SeckillDlqSnapshot>('/admin/seckill/dlq', {

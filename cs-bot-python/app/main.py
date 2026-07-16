@@ -28,7 +28,7 @@ kb_chunks = kb.rebuild()
 session_history: dict[str, ChatMessageHistory] = defaultdict(ChatMessageHistory)
 pending_tasks = PendingTaskStore()
 MAX_HISTORY_MESSAGES = settings.max_history_messages
-DEFAULT_SUGGESTIONS = ["查店铺优惠", "秒杀订单状态", "平台规则", "转人工"]
+DEFAULT_SUGGESTIONS = ["查店铺优惠", "订单履约状态", "退款规则", "转人工"]
 FALLBACK_MESSAGES = {
     "MODEL_NOT_CONFIGURED": "智能客服模型还没有配置完成，但我可以先帮你定位常见问题。",
     "MODEL_ERROR": "智能客服暂时开小差了，请稍后重试。",
@@ -64,19 +64,19 @@ def chat(payload: ChatRequest) -> ChatResponse:
         intent = resumed_status.intent
         if not resumed_status.is_complete:
             response = build_slot_follow_up_response(resumed_status, trace_id)
-            log_chat_turn(payload, trace_id, intent.value, used_tools, started_at, response.error_code, True)
+            log_chat_turn(payload, trace_id, intent.value, used_tools, started_at, response.error_code, True, response.answer)
             return response
     else:
         slot_status = build_slot_status(intent, payload.message)
         if not slot_status.is_complete:
             pending_tasks.save(payload.session_id, slot_status)
             response = build_slot_follow_up_response(slot_status, trace_id)
-            log_chat_turn(payload, trace_id, intent.value, used_tools, started_at, response.error_code, True)
+            log_chat_turn(payload, trace_id, intent.value, used_tools, started_at, response.error_code, True, response.answer)
             return response
 
     if not settings.openai_api_key:
         response = build_fallback_response("MODEL_NOT_CONFIGURED", intent=intent.value, trace_id=trace_id)
-        log_chat_turn(payload, trace_id, intent.value, used_tools, started_at, response.error_code, True)
+        log_chat_turn(payload, trace_id, intent.value, used_tools, started_at, response.error_code, True, response.answer)
         return response
 
     api_client = BackendClient(
@@ -106,7 +106,7 @@ def chat(payload: ChatRequest) -> ChatResponse:
         )
     except Exception:
         response = build_fallback_response("MODEL_ERROR", intent=intent.value, trace_id=trace_id)
-        log_chat_turn(payload, trace_id, intent.value, used_tools, started_at, response.error_code, True)
+        log_chat_turn(payload, trace_id, intent.value, used_tools, started_at, response.error_code, True, response.answer)
         return response
 
     answer = str(result.get("output", ""))
@@ -131,7 +131,7 @@ def chat(payload: ChatRequest) -> ChatResponse:
         trace_id=trace_id,
         error_code=error_code,
     )
-    log_chat_turn(payload, trace_id, intent.value, used_tools, started_at, error_code, False)
+    log_chat_turn(payload, trace_id, intent.value, used_tools, started_at, error_code, False, answer)
     return response
 
 
@@ -166,9 +166,9 @@ def build_suggestions(message: str, used_tools: list[str], intent: str | None = 
     suggestions: list[str] = []
     text = message.lower()
     if intent == "refund":
-        suggestions.extend(["秒杀订单状态", "退款规则", "转人工"])
-    if intent == "order" or "订单" in message or "秒杀" in message or "query_seckill_order_status" in used_tools:
-        suggestions.extend(["秒杀订单状态", "秒杀失败怎么办"])
+        suggestions.extend(["订单履约状态", "退款规则", "转人工"])
+    if intent == "order" or "订单" in message or "秒杀" in message or "query_order_fulfillment" in used_tools:
+        suggestions.extend(["订单履约状态", "秒杀失败怎么办"])
     if intent == "voucher" or "店" in message or "优惠" in message or "券" in message or "query_shop_vouchers" in used_tools:
         suggestions.extend(["查店铺优惠", "优惠券怎么使用"])
     if intent == "rule" or "规则" in message or "登录" in message or "评论" in message or "query_local_knowledge" in used_tools:
@@ -186,24 +186,37 @@ def log_chat_turn(
     started_at: float,
     error_code: str | None,
     fallback: bool,
+    answer: str = "",
 ) -> None:
     duration_ms = int((time.monotonic() - started_at) * 1000)
-    logger.info(
-        json.dumps(
+    event = {
+        "trace_id": trace_id,
+        "session_id": payload.session_id,
+        "user_id": payload.user_id,
+        "has_user_token": bool(payload.user_token),
+        "intent": intent,
+        "used_tools": used_tools,
+        "duration_ms": duration_ms,
+        "error_code": error_code,
+        "fallback": fallback,
+    }
+    logger.info(json.dumps(event, ensure_ascii=False))
+    try:
+        BackendClient(settings.backend_base_url, settings.backend_timeout_seconds, payload.user_token).record_agent_trace(
             {
-                "trace_id": trace_id,
-                "session_id": payload.session_id,
-                "user_id": payload.user_id,
-                "has_user_token": bool(payload.user_token),
+                "traceId": trace_id,
+                "sessionId": payload.session_id,
+                "userId": payload.user_id,
                 "intent": intent,
-                "used_tools": used_tools,
-                "duration_ms": duration_ms,
-                "error_code": error_code,
-                "fallback": fallback,
-            },
-            ensure_ascii=False,
+                "message": payload.message,
+                "usedTools": json.dumps(used_tools, ensure_ascii=False),
+                "errorCode": error_code,
+                "latencyMs": duration_ms,
+                "answerPreview": answer[:512],
+            }
         )
-    )
+    except Exception:
+        logger.debug("failed to report agent trace", exc_info=True)
 
 
 def build_cards_from_steps(intermediate_steps) -> list[ChatCard]:

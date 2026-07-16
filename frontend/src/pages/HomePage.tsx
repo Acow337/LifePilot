@@ -19,9 +19,13 @@ export function HomePage() {
   return (
     <div className="page fade-in">
       <section className="hero-panel">
-        <p className="kicker">Minimal lifestyle map</p>
-        <h1>发现城市里的好店与好内容</h1>
-        <p className="muted">后端接口直连，实时展示热门笔记和门店信息。</p>
+        <p className="kicker">LifePilot Local Ops Copilot</p>
+        <h1>AI 驱动的本地生活营销履约平台</h1>
+        <p className="muted">从活动配置、用户抢券、订单履约到 AI 客服和运营复盘，串起本地生活交易闭环。</p>
+        <div className="hero-actions">
+          <Link to="/shops" className="primary-btn">浏览本地服务</Link>
+          <Link to="/admin/dashboard" className="ghost-btn">进入运营驾驶舱</Link>
+        </div>
       </section>
 
       <section className="section">

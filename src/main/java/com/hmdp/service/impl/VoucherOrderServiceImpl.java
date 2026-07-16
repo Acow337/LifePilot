@@ -14,6 +14,9 @@ import com.hmdp.exception.BizException;
 import com.hmdp.mapper.VoucherOrderMapper;
 import com.hmdp.rebbitmq.MQSender;
 import com.hmdp.service.IAdminLogService;
+import com.hmdp.service.IInventoryLedgerService;
+import com.hmdp.service.IOperationEventService;
+import com.hmdp.service.IOrderStateLogService;
 import com.hmdp.service.ISeckillVoucherService;
 import com.hmdp.service.IShopService;
 import com.hmdp.service.IVoucherService;
@@ -90,6 +93,15 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 
     @Resource
     private IAdminLogService adminLogService;
+
+    @Resource
+    private IOrderStateLogService orderStateLogService;
+
+    @Resource
+    private IInventoryLedgerService inventoryLedgerService;
+
+    @Resource
+    private IOperationEventService operationEventService;
 
     //lua脚本
     private static final DefaultRedisScript<Long> SECKILL_SCRIPT;
@@ -169,6 +181,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         stringRedisTemplate.opsForValue().set(SECKILL_PENDING_ORDER_KEY + orderId, "1", 10, TimeUnit.MINUTES);
         try {
             mqSender.sendSeckillMessage(objectMapper.writeValueAsString(voucherOrder));
+            recordInventoryLedger(voucherId, orderId, "RESERVE", -1, "seckill", "Redis Lua 预占秒杀资格");
         } catch (JsonProcessingException e) {
             rollbackSeckillQualification(orderId, voucherId, userId, "FAIL:订单消息序列化失败");
             throw new BizException(ErrorCode.INTERNAL_ERROR, "下单请求处理失败");
@@ -201,6 +214,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
                 voucherId.toString(),
                 userId.toString()
         );
+        recordInventoryLedger(voucherId, orderId, "ROLLBACK", 1, "seckill", result);
         stringRedisTemplate.opsForValue().set(SECKILL_RESULT_KEY + orderId, result, 10, TimeUnit.MINUTES);
     }
 
@@ -294,6 +308,8 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         if (!saved) {
             throw new BizException(ErrorCode.BIZ_ERROR, "创建订单失败");
         }
+        recordOrderLog(voucherOrder, "create", null, voucherOrder.getStatus(), "用户创建普通优惠券订单");
+        recordInventoryLedger(voucherId, orderId, "DEDUCT", -1, "order", "普通优惠券下单扣减库存");
 
         Map<String, Object> data = new HashMap<>(4);
         data.put("orderId", orderId);
@@ -372,6 +388,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
             throw new BizException(ErrorCode.BIZ_ERROR, "取消订单失败");
         }
         recordOrderLog(order, "cancel", oldStatus, order.getStatus(), "用户取消未支付订单");
+        recordInventoryLedger(order.getVoucherId(), order.getId(), "RELEASE", 1, "order", "未支付订单取消释放库存");
         return Result.ok(toOrderState(order, "订单已取消"));
     }
 
@@ -411,6 +428,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
             throw new BizException(ErrorCode.BIZ_ERROR, "退款审核失败");
         }
         recordOrderLog(order, "approve_refund", oldStatus, order.getStatus(), "管理员通过退款");
+        recordInventoryLedger(order.getVoucherId(), order.getId(), "RELEASE", 1, "refund", "退款通过释放库存");
         return Result.ok(toOrderState(order, "退款已通过"));
     }
 
@@ -448,6 +466,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         }
         for (VoucherOrder order : orders) {
             recordOrderLog(order, "timeout_cancel", ORDER_STATUS_UNPAID, order.getStatus(), "系统自动取消超时未支付订单");
+            recordInventoryLedger(order.getVoucherId(), order.getId(), "RELEASE", 1, "order_timeout", "超时未支付释放库存");
         }
         Map<String, Object> data = new HashMap<>(2);
         data.put("canceled", orders.size());
@@ -500,6 +519,29 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
             adminLogService.save(adminLog);
         } catch (Exception ignored) {
         }
+        if (orderStateLogService != null) {
+            orderStateLogService.record(order, action, oldStatus, newStatus, resolveOperatorType(action), order.getUserId(), message);
+        }
+        if (operationEventService != null) {
+            operationEventService.record("order_" + action, "order", order.getId(), toJson(detail));
+        }
+    }
+
+    private String resolveOperatorType(String action) {
+        if ("approve_refund".equals(action) || "reject_refund".equals(action) || "redeem".equals(action)) {
+            return "admin";
+        }
+        if ("timeout_cancel".equals(action) || "seckill_create".equals(action)) {
+            return "system";
+        }
+        return "user";
+    }
+
+    private void recordInventoryLedger(Long voucherId, Long orderId, String changeType, Integer changeAmount, String source, String detail) {
+        if (inventoryLedgerService == null) {
+            return;
+        }
+        inventoryLedgerService.record(null, voucherId, orderId, changeType, changeAmount, source, detail);
     }
 
     private String toJson(Map<String, Object> detail) {

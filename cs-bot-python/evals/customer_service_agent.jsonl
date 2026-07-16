@@ -1,6 +1,6 @@
 {"id":"shop-detail-with-slot","message":"1号店铺地址在哪里","expected_intent":"shop","expected_missing_slot":null,"expected_allowed_tools":["query_shop_detail","query_local_knowledge"]}
-{"id":"voucher-missing-shop","message":"帮我查优惠券","expected_intent":"voucher","expected_missing_slot":"shop_id","expected_allowed_tools":["query_shop_detail","query_shop_vouchers","query_local_knowledge"]}
-{"id":"order-missing-id","message":"帮我查订单状态","expected_intent":"order","expected_missing_slot":"order_id","expected_allowed_tools":["query_seckill_order_status","query_local_knowledge"]}
-{"id":"refund-priority","message":"订单123456怎么取消退款","expected_intent":"refund","expected_missing_slot":null,"expected_allowed_tools":["query_seckill_order_status","query_local_knowledge"]}
-{"id":"rule-only-knowledge","message":"平台登录规则是什么","expected_intent":"rule","expected_missing_slot":null,"expected_allowed_tools":["query_local_knowledge"]}
+{"id":"voucher-missing-shop","message":"帮我查优惠券","expected_intent":"voucher","expected_missing_slot":"shop_id","expected_allowed_tools":["query_shop_detail","query_shop_vouchers","query_campaign_detail","query_local_knowledge"]}
+{"id":"order-missing-id","message":"帮我查订单状态","expected_intent":"order","expected_missing_slot":"order_id","expected_allowed_tools":["query_order_fulfillment","query_local_knowledge"]}
+{"id":"refund-priority","message":"订单123456怎么取消退款","expected_intent":"refund","expected_missing_slot":null,"expected_allowed_tools":["query_order_fulfillment","query_refund_policy","query_local_knowledge"]}
+{"id":"rule-only-knowledge","message":"平台登录规则是什么","expected_intent":"rule","expected_missing_slot":null,"expected_allowed_tools":["query_refund_policy","query_local_knowledge"]}
 {"id":"fallback-knowledge-only","message":"你好","expected_intent":"fallback","expected_missing_slot":null,"expected_allowed_tools":["query_local_knowledge"]}

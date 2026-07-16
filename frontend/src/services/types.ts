@@ -105,6 +105,54 @@ export interface Voucher {
   createTime?: string
 }
 
+export interface Campaign {
+  id: number
+  voucherId?: number
+  voucherTitle?: string
+  shopId: number
+  shopName?: string
+  name: string
+  type: string
+  typeText?: string
+  status: number
+  statusText?: string
+  stockTotal: number
+  stockAvailable: number
+  budgetCent?: number
+  beginTime?: string
+  endTime?: string
+  description?: string
+  createTime?: string
+  payValue?: number
+  actualValue?: number
+}
+
+export interface InventoryLedger {
+  id: number
+  campaignId?: number
+  voucherId?: number
+  orderId?: number
+  changeType: string
+  changeAmount: number
+  source: string
+  detail?: string
+  createTime?: string
+}
+
+export interface AgentTrace {
+  id: number
+  traceId: string
+  sessionId: string
+  userId: string
+  intent?: string
+  message: string
+  usedTools?: string
+  errorCode?: string
+  latencyMs?: number
+  answerPreview?: string
+  createTime?: string
+}
+
 export type SeckillOrderState = 'PENDING' | 'SUCCESS' | 'FAIL' | 'UNKNOWN'
 
 export interface SeckillOrderResult {
@@ -216,7 +264,19 @@ export interface AdminDashboardData {
     shops: number
     vouchers: number
     blogs: number
+    campaigns?: number
+    inventoryLedgers?: number
+    agentTraces?: number
   }
+  opsMetrics?: {
+    activeCampaigns: number
+    inventoryEvents: number
+    agentTurns: number
+    agentFailureRate: number
+    pendingRefunds: number
+    abnormalOrders: number
+  }
+  copilotInsights?: string[]
   statusDistribution: AdminDashboardStatusItem[]
   recentOrders: AdminDashboardRecentOrder[]
 }

@@ -6,6 +6,9 @@ import com.hmdp.entity.User;
 import com.hmdp.entity.Voucher;
 import com.hmdp.entity.VoucherOrder;
 import com.hmdp.service.IBlogService;
+import com.hmdp.service.IAgentTraceService;
+import com.hmdp.service.ICampaignService;
+import com.hmdp.service.IInventoryLedgerService;
 import com.hmdp.service.IShopService;
 import com.hmdp.service.IUserService;
 import com.hmdp.service.IVoucherOrderService;
@@ -40,8 +43,17 @@ public class AdminDashboardService {
     @Resource
     private IBlogService blogService;
 
+    @Resource
+    private ICampaignService campaignService;
+
+    @Resource
+    private IInventoryLedgerService inventoryLedgerService;
+
+    @Resource
+    private IAgentTraceService agentTraceService;
+
     public Map<String, Object> queryDashboard() {
-        Map<String, Object> data = new HashMap<>(12);
+        Map<String, Object> data = new HashMap<>(20);
         long totalOrders = voucherOrderService.count();
         long paidOrders = countOrdersByStatus(2);
         long usedOrders = countOrdersByStatus(3);
@@ -65,6 +77,8 @@ public class AdminDashboardService {
         data.put("entities", queryEntityTotals());
         data.put("statusDistribution", queryStatusDistribution());
         data.put("recentOrders", queryRecentOrders());
+        data.put("opsMetrics", queryOpsMetrics(totalOrders, refundingOrders));
+        data.put("copilotInsights", queryCopilotInsights(totalOrders, refundingOrders, canceledOrders));
         return data;
     }
 
@@ -87,12 +101,55 @@ public class AdminDashboardService {
     }
 
     private Map<String, Object> queryEntityTotals() {
-        Map<String, Object> entities = new HashMap<>(4);
+        Map<String, Object> entities = new HashMap<>(7);
         entities.put("users", userService.count());
         entities.put("shops", shopService.count());
         entities.put("vouchers", voucherService.count());
         entities.put("blogs", blogService.count());
+        entities.put("campaigns", campaignService.count());
+        entities.put("inventoryLedgers", inventoryLedgerService.count());
+        entities.put("agentTraces", agentTraceService.count());
         return entities;
+    }
+
+    private Map<String, Object> queryOpsMetrics(long totalOrders, long refundingOrders) {
+        Map<String, Object> metrics = new HashMap<>(8);
+        long activeCampaigns = campaignService.count(campaignService.query().eq("status", 1).getWrapper());
+        long inventoryEvents = inventoryLedgerService.count();
+        long agentTurns = agentTraceService.count();
+        long agentFailures = agentTraceService.count(agentTraceService.query().isNotNull("error_code").getWrapper());
+        metrics.put("activeCampaigns", activeCampaigns);
+        metrics.put("inventoryEvents", inventoryEvents);
+        metrics.put("agentTurns", agentTurns);
+        metrics.put("agentFailureRate", ratio(agentFailures, agentTurns));
+        metrics.put("pendingRefunds", refundingOrders);
+        metrics.put("abnormalOrders", countAbnormalOrders(totalOrders));
+        return metrics;
+    }
+
+    private List<String> queryCopilotInsights(long totalOrders, long refundingOrders, long canceledOrders) {
+        List<String> insights = new ArrayList<>();
+        if (campaignService.count() == 0) {
+            insights.add("建议创建首个 Campaign，将存量优惠券纳入统一营销活动视图。");
+        }
+        if (refundingOrders > 0) {
+            insights.add("当前存在退款中订单，建议运营优先审核，降低用户等待时长。");
+        }
+        if (ratio(canceledOrders, totalOrders).compareTo(BigDecimal.valueOf(20)) > 0) {
+            insights.add("关闭订单占比较高，可检查支付引导或活动库存承诺是否清晰。");
+        }
+        if (agentTraceService.count() == 0) {
+            insights.add("建议开启 Agent Trace 上报，沉淀客服意图、工具调用和失败原因。");
+        }
+        if (insights.isEmpty()) {
+            insights.add("运营链路运行平稳，可继续观察活动转化率、退款率和客服解决率。");
+        }
+        return insights;
+    }
+
+    private long countAbnormalOrders(long totalOrders) {
+        return Math.max(0, totalOrders - countOrdersByStatus(1) - countOrdersByStatus(2) - countOrdersByStatus(3)
+                - countOrdersByStatus(4) - countOrdersByStatus(5) - countOrdersByStatus(6));
     }
 
     private List<Map<String, Object>> queryStatusDistribution() {

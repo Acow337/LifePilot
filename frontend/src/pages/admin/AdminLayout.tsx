@@ -4,14 +4,17 @@ import { getMe } from '../../services/modules/auth'
 import { useAuthStore } from '../../store/auth'
 
 const menus = [
-  { to: '/admin/dashboard', label: '数据看板' },
+  { to: '/admin/dashboard', label: '运营驾驶舱' },
+  { to: '/admin/campaigns', label: '营销活动' },
   { to: '/admin/users', label: '用户管理' },
   { to: '/admin/blogs', label: '笔记审核' },
   { to: '/admin/shops', label: '店铺管理' },
   { to: '/admin/vouchers', label: '优惠券管理' },
   { to: '/admin/redeem', label: '优惠券核销' },
   { to: '/admin/refunds', label: '退款审核' },
-  { to: '/admin/seckill-dlq', label: '秒杀死信' },
+  { to: '/admin/fulfillment', label: '履约账本' },
+  { to: '/admin/agent', label: 'AI 工作台' },
+  { to: '/admin/seckill-dlq', label: '异常事件' },
   { to: '/admin/logs', label: '操作日志' },
 ]
 
@@ -57,7 +60,7 @@ export function AdminLayout() {
   return (
     <div className="admin-layout fade-in">
       <aside className="admin-side">
-        <h3>后台管理</h3>
+        <h3>LifePilot Ops</h3>
         <nav className="admin-nav">
           {menus.map((item) => (
             <NavLink key={item.to} to={item.to} className={({ isActive }) => (isActive ? 'active' : '')}>

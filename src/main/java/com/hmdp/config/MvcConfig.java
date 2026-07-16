@@ -27,6 +27,8 @@ public class MvcConfig implements WebMvcConfigurer {
                                     "/imgs/**",
                                     "/types/**",
                                     "/error",
+                                    "/agent/traces",
+                                    "/agent/tools/**",
                                     "/upload/**",
                                     "/voucher/**").order(1);
 

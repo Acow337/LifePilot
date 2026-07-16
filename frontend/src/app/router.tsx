@@ -16,6 +16,9 @@ import { AdminRedeemPage } from '../pages/admin/AdminRedeemPage'
 import { AdminRefundsPage } from '../pages/admin/AdminRefundsPage'
 import { AdminSeckillDlqPage } from '../pages/admin/AdminSeckillDlqPage'
 import { AdminDashboardPage } from '../pages/admin/AdminDashboardPage'
+import { AdminCampaignsPage } from '../pages/admin/AdminCampaignsPage'
+import { AdminFulfillmentPage } from '../pages/admin/AdminFulfillmentPage'
+import { AdminAgentPage } from '../pages/admin/AdminAgentPage'
 
 export const router = createBrowserRouter([
   {
@@ -59,6 +62,10 @@ export const router = createBrowserRouter([
             element: <AdminDashboardPage />,
           },
           {
+            path: 'campaigns',
+            element: <AdminCampaignsPage />,
+          },
+          {
             path: 'users',
             element: <AdminUsersPage />,
           },
@@ -81,6 +88,14 @@ export const router = createBrowserRouter([
           {
             path: 'refunds',
             element: <AdminRefundsPage />,
+          },
+          {
+            path: 'fulfillment',
+            element: <AdminFulfillmentPage />,
+          },
+          {
+            path: 'agent',
+            element: <AdminAgentPage />,
           },
           {
             path: 'seckill-dlq',

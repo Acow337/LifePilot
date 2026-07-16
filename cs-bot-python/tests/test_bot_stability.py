@@ -110,7 +110,7 @@ class BotStabilityTest(unittest.TestCase):
 
         self.assertIn("智能客服模型还没有配置完成", response.answer)
         self.assertIn("查店铺优惠", response.suggestions)
-        self.assertIn("秒杀订单状态", response.suggestions)
+        self.assertIn("订单履约状态", response.suggestions)
 
     def test_build_fallback_response_sets_error_metadata(self):
         response = build_fallback_response(
@@ -127,7 +127,7 @@ class BotStabilityTest(unittest.TestCase):
     def test_build_suggestions_handles_refund_intent(self):
         suggestions = build_suggestions("我想取消订单并退款", [], intent="refund")
 
-        self.assertIn("秒杀订单状态", suggestions)
+        self.assertIn("订单履约状态", suggestions)
         self.assertIn("转人工", suggestions)
 
     def test_detect_intent_routes_common_messages(self):
@@ -154,7 +154,7 @@ class BotStabilityTest(unittest.TestCase):
         tools = build_tools(api_client, kb, Intent.ORDER)
         names = [tool.name for tool in tools]
 
-        self.assertEqual(names, ["query_seckill_order_status", "query_local_knowledge"])
+        self.assertEqual(names, ["query_order_fulfillment", "query_local_knowledge"])
 
     def test_make_tool_error_returns_structured_json(self):
         payload = json.loads(make_tool_error("BACKEND_TIMEOUT", "后端服务响应超时，请稍后重试"))
@@ -177,8 +177,9 @@ class BotStabilityTest(unittest.TestCase):
             kb = LocalKnowledgeBase(str(Path(tmp_dir) / "*.md"))
             kb.rebuild()
             tools = build_tools(object(), kb, Intent.RULE)
+            knowledge_tool = next(tool for tool in tools if tool.name == "query_local_knowledge")
 
-            output = tools[0].invoke({"question": "秒杀失败原因"})
+            output = knowledge_tool.invoke({"question": "秒杀失败原因"})
 
             self.assertIn("chunk_id=faq.md#chunk1", output)
             self.assertIn("section=秒杀订单状态", output)

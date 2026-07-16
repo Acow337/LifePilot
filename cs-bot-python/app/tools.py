@@ -12,10 +12,10 @@ from .knowledge_base import LocalKnowledgeBase
 
 TOOL_POLICY: dict[Intent, tuple[str, ...]] = {
     Intent.SHOP: ("query_shop_detail", "query_local_knowledge"),
-    Intent.VOUCHER: ("query_shop_detail", "query_shop_vouchers", "query_local_knowledge"),
-    Intent.ORDER: ("query_seckill_order_status", "query_local_knowledge"),
-    Intent.REFUND: ("query_seckill_order_status", "query_local_knowledge"),
-    Intent.RULE: ("query_local_knowledge",),
+    Intent.VOUCHER: ("query_shop_detail", "query_shop_vouchers", "query_campaign_detail", "query_local_knowledge"),
+    Intent.ORDER: ("query_order_fulfillment", "query_local_knowledge"),
+    Intent.REFUND: ("query_order_fulfillment", "query_refund_policy", "query_local_knowledge"),
+    Intent.RULE: ("query_refund_policy", "query_local_knowledge"),
     Intent.FALLBACK: ("query_local_knowledge",),
 }
 
@@ -77,6 +77,33 @@ def build_tools(api_client: BackendClient, kb: LocalKnowledgeBase, intent: Inten
             return _format_tool_exception(exc)
 
     @tool
+    def query_order_fulfillment(order_id: int) -> str:
+        """查询订单履约详情和状态机时间线。输入 order_id（int）"""
+        try:
+            payload = api_client.get_agent_order(order_id)
+            return json.dumps(payload, ensure_ascii=False)
+        except Exception as exc:
+            return _format_tool_exception(exc)
+
+    @tool
+    def query_campaign_detail(campaign_id: int) -> str:
+        """查询营销活动详情。输入 campaign_id（int）"""
+        try:
+            payload = api_client.get_agent_campaign(campaign_id)
+            return json.dumps(payload, ensure_ascii=False)
+        except Exception as exc:
+            return _format_tool_exception(exc)
+
+    @tool
+    def query_refund_policy() -> str:
+        """查询平台退款、核销和 Agent 处理边界规则。无需输入。"""
+        try:
+            payload = api_client.get_refund_policy()
+            return json.dumps(payload, ensure_ascii=False)
+        except Exception as exc:
+            return _format_tool_exception(exc)
+
+    @tool
     def query_local_knowledge(question: str) -> str:
         """从本地知识库检索运营规则、文档说明。输入问题文本。"""
         results = kb.search_with_scores(question)
@@ -98,7 +125,15 @@ def build_tools(api_client: BackendClient, kb: LocalKnowledgeBase, intent: Inten
             )
         return "\n\n".join(pieces)
 
-    tools = [query_shop_detail, query_shop_vouchers, query_seckill_order_status, query_local_knowledge]
+    tools = [
+        query_shop_detail,
+        query_shop_vouchers,
+        query_seckill_order_status,
+        query_order_fulfillment,
+        query_campaign_detail,
+        query_refund_policy,
+        query_local_knowledge,
+    ]
     if intent is None:
         return tools
 
